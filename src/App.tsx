@@ -1,0 +1,75 @@
+import { useEffect } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
+import { IconCloud, Spinner } from "./components/Icons";
+import { PlayerBar } from "./components/PlayerBar";
+import { QueuePanel } from "./components/QueuePanel";
+import { Sidebar } from "./components/Sidebar";
+import { TokenGate } from "./components/TokenGate";
+import { initEvents } from "./lib/events";
+import { refreshAuth, refreshDownloads, useAuthStore } from "./lib/stores";
+import { ArtistPage } from "./pages/ArtistPage";
+import { FeedPage } from "./pages/FeedPage";
+import { LikesPage } from "./pages/LikesPage";
+import { PlaylistDetailPage } from "./pages/PlaylistDetailPage";
+import { PlaylistsPage } from "./pages/PlaylistsPage";
+import { SearchPage } from "./pages/SearchPage";
+import { SettingsPage } from "./pages/SettingsPage";
+
+export default function App() {
+  const loading = useAuthStore((s) => s.loading);
+  const loggedIn = useAuthStore((s) => s.status?.logged_in ?? false);
+  const expired = useAuthStore((s) => s.expired);
+
+  useEffect(() => {
+    initEvents();
+    void refreshAuth();
+    void refreshDownloads();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-orange-500">
+        <IconCloud size={40} />
+        <Spinner size={20} />
+      </div>
+    );
+  }
+
+  if (!loggedIn) {
+    return <TokenGate />;
+  }
+
+  return (
+    <div className="flex h-full flex-col">
+      {expired && <ExpiredBanner />}
+      <div className="relative flex min-h-0 flex-1">
+        <Sidebar />
+        <main className="min-w-0 flex-1">
+          <Routes>
+            <Route path="/" element={<FeedPage />} />
+            <Route path="/likes" element={<LikesPage />} />
+            <Route path="/playlists" element={<PlaylistsPage />} />
+            <Route path="/playlist/:id" element={<PlaylistDetailPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/artist/:id" element={<ArtistPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <QueuePanel />
+      </div>
+      <PlayerBar />
+    </div>
+  );
+}
+
+function ExpiredBanner() {
+  return (
+    <div className="flex shrink-0 items-center justify-center gap-2 bg-amber-600/90 px-4 py-1.5 text-xs font-medium text-white">
+      Your SoundCloud token expired — paste a fresh one in
+      <a href="#/settings" className="underline">
+        Settings
+      </a>
+    </div>
+  );
+}
