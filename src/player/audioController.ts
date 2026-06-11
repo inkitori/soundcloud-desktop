@@ -116,6 +116,7 @@ class AudioController {
       trackArtist(track),
       trackArt(track, 500),
       (track.duration ?? 0) / 1000,
+      track.permalink_url ?? null,
     );
     try {
       await this.setSource(false);

@@ -4,6 +4,7 @@ use tauri::{AppHandle, State};
 
 use crate::error::{AppError, Result};
 use crate::media::cache::{CacheDb, CacheStats, CachedRow};
+use crate::media::discord::{DiscordHandle, DiscordUpdate};
 use crate::media::downloader::{self, DownloadManager};
 use crate::media::nowplaying::{NpHandle, NpUpdate};
 use crate::media::resolver::{self, PlaybackSource};
@@ -286,11 +287,20 @@ pub async fn set_cache_cap(cache: Cache<'_>, bytes: u64) -> Result<Vec<u64>> {
 #[tauri::command]
 pub fn np_set_metadata(
     np: State<'_, NpHandle>,
+    discord: State<'_, DiscordHandle>,
     title: String,
     artist: String,
     artwork_url: Option<String>,
     duration_s: f64,
+    permalink_url: Option<String>,
 ) {
+    discord.send(DiscordUpdate::Metadata {
+        title: title.clone(),
+        artist: artist.clone(),
+        artwork_url: artwork_url.clone(),
+        duration_s,
+        permalink_url,
+    });
     np.send(NpUpdate::Metadata {
         title,
         artist,
@@ -300,9 +310,23 @@ pub fn np_set_metadata(
 }
 
 #[tauri::command]
-pub fn np_set_playback(np: State<'_, NpHandle>, playing: bool, position_s: f64) {
+pub fn np_set_playback(
+    np: State<'_, NpHandle>,
+    discord: State<'_, DiscordHandle>,
+    playing: bool,
+    position_s: f64,
+) {
+    discord.send(DiscordUpdate::Playback {
+        playing,
+        position_s,
+    });
     np.send(NpUpdate::Playback {
         playing,
         position_s,
     });
+}
+
+#[tauri::command]
+pub fn discord_set_enabled(discord: State<'_, DiscordHandle>, enabled: bool) {
+    discord.send(DiscordUpdate::Enabled(enabled));
 }

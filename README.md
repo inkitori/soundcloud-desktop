@@ -12,6 +12,7 @@ authenticated with your own browser OAuth token.
 - **Station autoplay** — when the queue runs out, related tracks keep playing (toggleable)
 - **Offline downloads** — cache tracks locally (HLS → ffmpeg remux to .m4a), LRU cache with size cap, plays offline
 - **Real player** — queue management, canvas waveform seeking, media keys, macOS Now Playing / Control Center integration
+- **Discord Rich Presence** — "Listening to SoundCloud" with track, artist, artwork, and a live progress bar (Spotify-style); hides while paused, toggleable in Settings
 - Go+-only tracks play their 30s preview (free account); geo-blocked tracks are skipped
 
 ## Setup

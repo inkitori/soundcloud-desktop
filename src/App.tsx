@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { api } from "./api/commands";
 import { IconCloud, Spinner } from "./components/Icons";
 import { PlayerBar } from "./components/PlayerBar";
 import { QueuePanel } from "./components/QueuePanel";
@@ -13,7 +14,7 @@ import { LikesPage } from "./pages/LikesPage";
 import { PlaylistDetailPage } from "./pages/PlaylistDetailPage";
 import { PlaylistsPage } from "./pages/PlaylistsPage";
 import { SearchPage } from "./pages/SearchPage";
-import { SettingsPage } from "./pages/SettingsPage";
+import { discordRpcEnabled, SettingsPage } from "./pages/SettingsPage";
 
 export default function App() {
   const loading = useAuthStore((s) => s.loading);
@@ -24,6 +25,8 @@ export default function App() {
     initEvents();
     void refreshAuth();
     void refreshDownloads();
+    // The backend presence actor defaults to enabled; only the opt-out needs replaying.
+    if (!discordRpcEnabled()) void api.discordSetEnabled(false);
   }, []);
 
   if (loading) {

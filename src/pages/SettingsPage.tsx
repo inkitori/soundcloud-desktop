@@ -14,6 +14,7 @@ export function SettingsPage() {
       <h1 className="py-5 text-lg font-bold text-zinc-100">Settings</h1>
       <div className="max-w-2xl space-y-8">
         <AccountSection username={me?.username} />
+        <DiscordSection />
         <CacheSection />
       </div>
     </div>
@@ -85,6 +86,39 @@ function AccountSection({ username }: { username?: string | null }) {
       </div>
     </section>
   );
+}
+
+function DiscordSection() {
+  const [enabled, setEnabled] = useState(discordRpcEnabled());
+
+  const toggle = () => {
+    const next = !enabled;
+    setEnabled(next);
+    localStorage.setItem("discordRpc", next ? "1" : "0");
+    void api.discordSetEnabled(next);
+  };
+
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        Discord
+      </h2>
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <label className="flex cursor-pointer items-center gap-3">
+          <input type="checkbox" checked={enabled} onChange={toggle} className="accent-orange-600" />
+          <span className="text-sm text-zinc-300">Show what I'm listening to on Discord</span>
+        </label>
+        <p className="mt-1 text-xs text-zinc-500">
+          Rich Presence with track, artist, artwork and live progress. Needs the Discord desktop
+          app running; presence hides while paused.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+export function discordRpcEnabled(): boolean {
+  return localStorage.getItem("discordRpc") !== "0";
 }
 
 function CacheSection() {

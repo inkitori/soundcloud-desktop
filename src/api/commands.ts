@@ -77,8 +77,14 @@ export const api = {
   setCacheCap: (bytes: number) => invoke<number[]>("set_cache_cap", { bytes }),
 
   // now playing
-  npSetMetadata: (title: string, artist: string, artworkUrl: string | null, durationS: number) =>
-    invoke<void>("np_set_metadata", { title, artist, artworkUrl, durationS }),
+  npSetMetadata: (
+    title: string,
+    artist: string,
+    artworkUrl: string | null,
+    durationS: number,
+    permalinkUrl: string | null,
+  ) => invoke<void>("np_set_metadata", { title, artist, artworkUrl, durationS, permalinkUrl }),
   npSetPlayback: (playing: boolean, positionS: number) =>
     invoke<void>("np_set_playback", { playing, positionS }),
+  discordSetEnabled: (enabled: boolean) => invoke<void>("discord_set_enabled", { enabled }),
 };

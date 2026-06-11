@@ -28,6 +28,7 @@ pub fn run() {
             app.manage(Arc::new(cache));
             app.manage(Arc::new(DownloadManager::default()));
             app.manage(media::nowplaying::spawn(handle));
+            app.manage(media::discord::spawn());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -68,6 +69,7 @@ pub fn run() {
             commands::set_cache_cap,
             commands::np_set_metadata,
             commands::np_set_playback,
+            commands::discord_set_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
