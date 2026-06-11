@@ -114,6 +114,7 @@ export type PlaybackSource =
 export interface AuthStatus {
   logged_in: boolean;
   me?: User | null;
+  datadome_set: boolean;
 }
 
 export interface CachedRow {

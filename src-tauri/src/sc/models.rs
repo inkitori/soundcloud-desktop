@@ -175,4 +175,6 @@ pub enum ResolvedEntity {
 pub struct AuthStatus {
     pub logged_in: bool,
     pub me: Option<User>,
+    /// Whether a DataDome clearance cookie is stored (needed for write ops).
+    pub datadome_set: bool,
 }

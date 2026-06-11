@@ -10,9 +10,22 @@ export function FeedPage() {
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading, error } = useFeed();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const items = useMemo(() => data?.pages.flatMap((p) => p.collection) ?? [], [data]);
+  // /stream pages can overlap at the boundary, so the same item (same entity
+  // posted/reposted by the same actor) shows up twice — keep the first one.
+  const items = useMemo(() => {
+    const all = data?.pages.flatMap((p) => p.collection) ?? [];
+    const seen = new Set<string>();
+    const out: { item: FeedItem; key: string }[] = [];
+    for (const item of all) {
+      const key = feedItemKey(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ item, key });
+    }
+    return out;
+  }, [data]);
   const feedTracks = useMemo(
-    () => items.flatMap((i) => (i.track ? [i.track] : [])),
+    () => items.flatMap(({ item }) => (item.track ? [item.track] : [])),
     [items],
   );
 
@@ -35,9 +48,9 @@ export function FeedPage() {
     <div className="h-full overflow-y-auto px-4 pb-4">
       <h1 className="px-2 py-4 text-lg font-bold text-zinc-100">Your feed</h1>
       <div className="space-y-1">
-        {items.map((item, i) => (
+        {items.map(({ item, key }) => (
           <FeedRow
-            key={`${item.type}-${item.track?.id ?? item.playlist?.id ?? i}-${i}`}
+            key={key}
             item={item}
             onPlayTrack={(track) =>
               playContext(feedTracks, feedTracks.findIndex((t) => t.id === track.id))
@@ -50,6 +63,15 @@ export function FeedPage() {
       </div>
     </div>
   );
+}
+
+function feedItemKey(item: FeedItem): string {
+  return [
+    item.type,
+    item.track?.id ?? "",
+    item.playlist?.id ?? "",
+    item.user?.id ?? "",
+  ].join(":");
 }
 
 function FeedRow({

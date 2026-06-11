@@ -5,7 +5,9 @@ import { IconCloud, Spinner } from "./components/Icons";
 import { PlayerBar } from "./components/PlayerBar";
 import { QueuePanel } from "./components/QueuePanel";
 import { Sidebar } from "./components/Sidebar";
+import { Toasts } from "./components/Toasts";
 import { TokenGate } from "./components/TokenGate";
+import { TopBar } from "./components/TopBar";
 import { initEvents } from "./lib/events";
 import { refreshAuth, refreshDownloads, useAuthStore } from "./lib/stores";
 import { ArtistPage } from "./pages/ArtistPage";
@@ -47,19 +49,23 @@ export default function App() {
       {expired && <ExpiredBanner />}
       <div className="relative flex min-h-0 flex-1">
         <Sidebar />
-        <main className="min-w-0 flex-1">
-          <Routes>
-            <Route path="/" element={<FeedPage />} />
-            <Route path="/likes" element={<LikesPage />} />
-            <Route path="/playlists" element={<PlaylistsPage />} />
-            <Route path="/playlist/:id" element={<PlaylistDetailPage />} />
-            <Route path="/search" element={<SearchPage />} />
-            <Route path="/artist/:id" element={<ArtistPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+        <main className="flex min-w-0 flex-1 flex-col">
+          <TopBar />
+          <div className="min-h-0 flex-1">
+            <Routes>
+              <Route path="/" element={<FeedPage />} />
+              <Route path="/likes" element={<LikesPage />} />
+              <Route path="/playlists" element={<PlaylistsPage />} />
+              <Route path="/playlist/:id" element={<PlaylistDetailPage />} />
+              <Route path="/search" element={<SearchPage />} />
+              <Route path="/artist/:id" element={<ArtistPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </div>
         </main>
         <QueuePanel />
+        <Toasts />
       </div>
       <PlayerBar />
     </div>

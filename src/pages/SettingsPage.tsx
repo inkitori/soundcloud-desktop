@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "../api/commands";
 import { useCacheStats } from "../api/queries";
 import type { AppError } from "../api/types";
@@ -22,6 +22,7 @@ export function SettingsPage() {
 }
 
 function AccountSection({ username }: { username?: string | null }) {
+  const datadomeSet = useAuthStore((s) => s.status?.datadome_set ?? false);
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -84,7 +85,72 @@ function AccountSection({ username }: { username?: string | null }) {
           Disconnect account
         </button>
       </div>
+      <DatadomeRow configured={datadomeSet} />
     </section>
+  );
+}
+
+/**
+ * SoundCloud guards write requests (likes, playlist edits) with DataDome bot
+ * protection, which only clears for a cookie a real browser solved. We can't
+ * solve it headlessly, so the user pastes their browser's `datadome` cookie —
+ * same place they got `oauth_token`.
+ */
+function DatadomeRow({ configured }: { configured: boolean }) {
+  const [cookie, setCookie] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    setSaved(false);
+    try {
+      await api.authSetDatadome(cookie.trim());
+      await refreshAuth();
+      setCookie("");
+      setSaved(true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-medium text-zinc-200">Likes &amp; playlist edits</span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+            configured ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+          }`}
+        >
+          {configured ? "Enabled" : "Needs cookie"}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-zinc-500">
+        SoundCloud blocks liking and playlist changes from outside the browser with bot protection.
+        To enable them, copy the <span className="font-mono">datadome</span> cookie value from your
+        browser (DevTools → Application → Cookies → soundcloud.com) and paste it here. It rotates
+        over time; re-paste if likes start failing again.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          value={cookie}
+          onChange={(e) => setCookie(e.target.value)}
+          placeholder="paste datadome cookie"
+          spellCheck={false}
+          className="flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-orange-500"
+        />
+        <button
+          onClick={() => void save()}
+          disabled={busy || cookie.trim().length < 10}
+          className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/15 disabled:opacity-40"
+        >
+          {busy && <Spinner size={12} />}
+          Save
+        </button>
+      </div>
+      {saved && <p className="mt-2 text-xs text-zinc-400">Saved — try liking a track.</p>}
+    </div>
   );
 }
 
@@ -123,7 +189,10 @@ export function discordRpcEnabled(): boolean {
 
 function CacheSection() {
   const { data: stats } = useCacheStats();
-  const cached = useDownloadStore((s) => Object.values(s.cached));
+  // Select the stable map and derive the array outside the selector: a fresh
+  // array per snapshot makes useSyncExternalStore loop and crash the page.
+  const cachedMap = useDownloadStore((s) => s.cached);
+  const cached = useMemo(() => Object.values(cachedMap), [cachedMap]);
   const [capGb, setCapGb] = useState<string>("");
 
   const applyCap = async () => {

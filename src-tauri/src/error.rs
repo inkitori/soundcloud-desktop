@@ -12,6 +12,8 @@ pub enum AppError {
     RateLimited { retry_after_secs: u64 },
     #[error("not found")]
     NotFound,
+    #[error("SoundCloud's bot protection (DataDome) blocked this request — paste a fresh datadome cookie in Settings")]
+    BotChallenge,
     #[error("no playable stream for track {0}")]
     NoPlayableStream(u64),
     #[error("this track is DRM-protected and can't be played outside SoundCloud")]
@@ -30,6 +32,7 @@ impl AppError {
             AppError::NotLoggedIn => "not_logged_in",
             AppError::RateLimited { .. } => "rate_limited",
             AppError::NotFound => "not_found",
+            AppError::BotChallenge => "bot_challenge",
             AppError::NoPlayableStream(_) => "no_stream",
             AppError::DrmProtected => "drm",
             AppError::ClientId => "client_id",

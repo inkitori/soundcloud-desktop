@@ -19,6 +19,7 @@ export const api = {
   authStatus: () => invoke<AuthStatus>("auth_status"),
   authSetToken: (token: string) => invoke<User>("auth_set_token", { token }),
   authClearToken: () => invoke<void>("auth_clear_token"),
+  authSetDatadome: (cookie: string) => invoke<void>("auth_set_datadome", { cookie }),
 
   // reads
   getStream: (nextHref?: string) =>

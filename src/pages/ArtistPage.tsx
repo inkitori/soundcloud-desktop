@@ -17,9 +17,16 @@ type Tab = "popular" | "tracks" | "likes" | "playlists";
 export function ArtistPage() {
   const { id } = useParams();
   const userId = Number(id);
-  const { data: user, isLoading } = useUser(userId);
+  const { data: user, isLoading, error } = useUser(userId);
   const [tab, setTab] = useState<Tab>("popular");
 
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+        Couldn't load this artist: {(error as Error).message}
+      </div>
+    );
+  }
   if (isLoading || !user) {
     return (
       <div className="flex h-full items-center justify-center text-zinc-500">

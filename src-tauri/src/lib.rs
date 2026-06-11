@@ -35,6 +35,7 @@ pub fn run() {
             commands::auth_status,
             commands::auth_set_token,
             commands::auth_clear_token,
+            commands::auth_set_datadome,
             commands::get_stream,
             commands::get_my_likes,
             commands::get_my_playlists,

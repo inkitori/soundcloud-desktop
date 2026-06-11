@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { audioController } from "../player/audioController";
 import { next, prev } from "../player/queueStore";
 import { refreshDownloads, setDownloadProgress, useAuthStore } from "./stores";
+import { showToast } from "./toast";
 
 let initialized = false;
 
@@ -53,6 +54,7 @@ export function initEvents() {
       setDownloadProgress(event.payload.track_id, null);
       if (!event.payload.cancelled) {
         console.error(`download ${event.payload.track_id} failed: ${event.payload.message}`);
+        showToast(`Download failed: ${event.payload.message}`, "error");
       }
     },
   );
@@ -71,6 +73,16 @@ export function initEvents() {
       next();
     } else if (e.code === "ArrowLeft" && e.shiftKey) {
       prev();
+    } else if (e.metaKey && e.key === "[") {
+      window.history.back();
+    } else if (e.metaKey && e.key === "]") {
+      window.history.forward();
     }
+  });
+
+  // The webview doesn't handle mouse back/forward buttons itself.
+  window.addEventListener("mouseup", (e) => {
+    if (e.button === 3) window.history.back();
+    else if (e.button === 4) window.history.forward();
   });
 }

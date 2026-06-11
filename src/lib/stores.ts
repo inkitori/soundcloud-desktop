@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { api } from "../api/commands";
-import type { AuthStatus, CachedRow } from "../api/types";
+import type { AppError, AuthStatus, CachedRow } from "../api/types";
+import { showToast } from "./toast";
 
 // ---- auth ----
 
@@ -22,7 +23,10 @@ export async function refreshAuth() {
     useAuthStore.setState({ status, loading: false, expired: false });
   } catch (e) {
     console.error("auth_status failed", e);
-    useAuthStore.setState({ status: { logged_in: false }, loading: false });
+    useAuthStore.setState({
+      status: { logged_in: false, datadome_set: false },
+      loading: false,
+    });
   }
 }
 
@@ -56,6 +60,10 @@ export async function toggleLikeTrack(trackId: number) {
     else await api.likeTrack(trackId);
   } catch (e) {
     console.error("like toggle failed", e);
+    showToast(
+      `Couldn't ${liked ? "unlike" : "like"}: ${(e as AppError).message ?? String(e)}`,
+      "error",
+    );
     // revert
     useLikedStore.setState((s) => {
       const next = new Set(s.ids);

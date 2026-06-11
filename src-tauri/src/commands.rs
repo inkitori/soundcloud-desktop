@@ -21,10 +21,12 @@ type Dm<'a> = State<'a, Arc<DownloadManager>>;
 
 #[tauri::command]
 pub async fn auth_status(sc: Sc<'_>) -> Result<AuthStatus> {
+    let datadome_set = sc.has_datadome().await;
     if !sc.has_token().await {
         return Ok(AuthStatus {
             logged_in: false,
             me: None,
+            datadome_set,
         });
     }
     match sc.ep_me().await {
@@ -33,14 +35,27 @@ pub async fn auth_status(sc: Sc<'_>) -> Result<AuthStatus> {
             Ok(AuthStatus {
                 logged_in: true,
                 me: Some(me),
+                datadome_set,
             })
         }
         Err(AppError::TokenExpired) => Ok(AuthStatus {
             logged_in: false,
             me: None,
+            datadome_set,
         }),
         Err(e) => Err(e),
     }
+}
+
+#[tauri::command]
+pub async fn auth_set_datadome(sc: Sc<'_>, cookie: String) -> Result<()> {
+    sc.set_datadome(if cookie.trim().is_empty() {
+        None
+    } else {
+        Some(cookie)
+    })
+    .await;
+    Ok(())
 }
 
 #[tauri::command]

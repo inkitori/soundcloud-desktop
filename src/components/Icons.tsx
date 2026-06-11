@@ -74,6 +74,12 @@ export const IconVolume = svg(
   <path d="M3 9v6h4l5 5V4L7 9zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z" />,
 );
 export const IconPlus = svg(<path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z" />);
+export const IconChevronLeft = svg(
+  <path d="M15.4 6.4 14 5l-7 7 7 7 1.4-1.4L9.8 12z" />,
+);
+export const IconChevronRight = svg(
+  <path d="M8.6 6.4 10 5l7 7-7 7-1.4-1.4 5.6-5.6z" />,
+);
 export const IconCloud = svg(
   <path d="M19.4 10.04A7.5 7.5 0 0 0 5.07 8.11 5.5 5.5 0 0 0 6 19h13a4.5 4.5 0 0 0 .4-8.96z" />,
 );

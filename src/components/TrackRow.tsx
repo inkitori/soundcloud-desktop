@@ -15,6 +15,7 @@ import {
   useDownloadStore,
   useLikedStore,
 } from "../lib/stores";
+import { showToast } from "../lib/toast";
 import { usePlayerStore } from "../player/playerStore";
 import { addLast } from "../player/queueStore";
 import {
@@ -110,7 +111,10 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
           {liked ? <IconHeartFilled size={15} /> : <IconHeart size={15} />}
         </button>
         <button
-          onClick={() => addLast(track)}
+          onClick={() => {
+            addLast(track);
+            showToast(`Added "${trackTitle(track)}" to queue`);
+          }}
           className="rounded p-1.5 text-zinc-400 hover:bg-white/10"
           title="Add to queue"
         >

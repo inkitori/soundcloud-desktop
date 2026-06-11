@@ -108,6 +108,7 @@ class AudioController {
       status: "loading",
       position: 0,
       duration: (track.duration ?? 0) / 1000,
+      sourceKind: null,
       snipped: false,
       error: null,
     });
