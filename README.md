@@ -4,6 +4,16 @@ A personal SoundCloud client for macOS. Tauri 2 + Rust backend, React frontend.
 Custom UI over SoundCloud's internal `api-v2` (the same API their web app uses),
 authenticated with your own browser OAuth token.
 
+## Screenshots
+
+| Feed | Likes |
+| --- | --- |
+| ![Home feed](screenshots/feed.png) | ![Liked tracks](screenshots/likes.png) |
+
+| Search | Artist page |
+| --- | --- |
+| ![Search](screenshots/search.png) | ![Artist page](screenshots/artist.png) |
+
 ## Features
 
 - **Home feed** — tracks and reposts from artists you follow, infinite scroll
