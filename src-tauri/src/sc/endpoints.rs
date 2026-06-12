@@ -136,19 +136,35 @@ impl ScClient {
             .await
     }
 
+    pub async fn ep_user_followers(&self, id: u64, next: Option<String>) -> Result<Page<User>> {
+        self.page(&format!("/users/{id}/followers"), next, 24).await
+    }
+
+    pub async fn ep_user_followings(&self, id: u64, next: Option<String>) -> Result<Page<User>> {
+        self.page(&format!("/users/{id}/followings"), next, 24).await
+    }
+
     /// One of the id-set endpoints the web app preloads to light up
-    /// heart/repost/follow state (`/me/track_likes/ids`, `/me/track_reposts/ids`,
-    /// `/me/followings/ids`, …). Pages defensively; tolerant of shape drift.
+    /// heart/repost state (`/me/track_likes/ids`, `/me/track_reposts/ids`, …).
     pub async fn ep_my_ids(&self, what: &str) -> Result<Vec<u64>> {
+        self.ep_ids(&format!("/me/{what}/ids")).await
+    }
+
+    /// Followed-user ids. There is no `/me/followings/ids` (404); the working
+    /// endpoint is `/users/{me}/followings/ids`.
+    pub async fn ep_my_following_ids(&self) -> Result<Vec<u64>> {
+        let me = self.me_id().await?;
+        self.ep_ids(&format!("/users/{me}/followings/ids")).await
+    }
+
+    /// Drain an id-set endpoint. Pages defensively; tolerant of shape drift.
+    async fn ep_ids(&self, path: &str) -> Result<Vec<u64>> {
         let mut out = Vec::new();
         let mut next: Option<String> = None;
         for _ in 0..10 {
             let v = match &next {
                 Some(href) => self.get_value(href, &[]).await?,
-                None => {
-                    self.get_value(&format!("/me/{what}/ids"), &lp(5000))
-                        .await?
-                }
+                None => self.get_value(path, &lp(5000)).await?,
             };
             let items = v
                 .get("collection")

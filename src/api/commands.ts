@@ -47,6 +47,10 @@ export const api = {
     invoke<Page<Playlist>>("get_user_albums", { id, nextHref: nextHref ?? null }),
   getUserReposts: (id: number, nextHref?: string) =>
     invoke<Page<FeedItem>>("get_user_reposts", { id, nextHref: nextHref ?? null }),
+  getUserFollowers: (id: number, nextHref?: string) =>
+    invoke<Page<User>>("get_user_followers", { id, nextHref: nextHref ?? null }),
+  getUserFollowings: (id: number, nextHref?: string) =>
+    invoke<Page<User>>("get_user_followings", { id, nextHref: nextHref ?? null }),
   getSocialIds: () => invoke<SocialIds>("get_social_ids"),
   getRelatedTracks: (trackId: number, nextHref?: string) =>
     invoke<Page<Track>>("get_related_tracks", { trackId, nextHref: nextHref ?? null }),

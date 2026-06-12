@@ -84,6 +84,14 @@ export function useUserReposts(id: number) {
   return useInfinite(["user-reposts", id], (next) => api.getUserReposts(id, next));
 }
 
+export function useUserFollowers(id: number, enabled = true) {
+  return useInfinite(["user-followers", id], (next) => api.getUserFollowers(id, next), enabled);
+}
+
+export function useUserFollowings(id: number, enabled = true) {
+  return useInfinite(["user-followings", id], (next) => api.getUserFollowings(id, next), enabled);
+}
+
 export function useSearchTracks(q: string) {
   return useInfinite(["search", "tracks", q], (next) => api.searchTracks(q, next), q.length > 1);
 }

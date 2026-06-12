@@ -188,6 +188,24 @@ pub async fn get_user_reposts(
     sc.ep_user_reposts(id, next_href).await
 }
 
+#[tauri::command]
+pub async fn get_user_followers(
+    sc: Sc<'_>,
+    id: u64,
+    next_href: Option<String>,
+) -> Result<Page<User>> {
+    sc.ep_user_followers(id, next_href).await
+}
+
+#[tauri::command]
+pub async fn get_user_followings(
+    sc: Sc<'_>,
+    id: u64,
+    next_href: Option<String>,
+) -> Result<Page<User>> {
+    sc.ep_user_followings(id, next_href).await
+}
+
 /// Fetch the full id sets for likes/reposts/followings. Each set degrades to
 /// empty on failure so one flaky endpoint doesn't blank the others.
 #[tauri::command]
@@ -197,7 +215,7 @@ pub async fn get_social_ids(sc: Sc<'_>) -> Result<SocialIds> {
         liked_playlists: sc.ep_my_ids("playlist_likes").await.unwrap_or_default(),
         reposted_tracks: sc.ep_my_ids("track_reposts").await.unwrap_or_default(),
         reposted_playlists: sc.ep_my_ids("playlist_reposts").await.unwrap_or_default(),
-        followed_users: sc.ep_my_ids("followings").await.unwrap_or_default(),
+        followed_users: sc.ep_my_following_ids().await.unwrap_or_default(),
     })
 }
 

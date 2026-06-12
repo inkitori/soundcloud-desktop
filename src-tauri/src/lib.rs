@@ -53,6 +53,8 @@ pub fn run() {
             commands::get_user_playlists,
             commands::get_user_albums,
             commands::get_user_reposts,
+            commands::get_user_followers,
+            commands::get_user_followings,
             commands::get_social_ids,
             commands::get_related_tracks,
             commands::search_tracks,
