@@ -42,12 +42,16 @@ jobs:
 
             ```sh
             brew tap inkitori/tap
-            brew install --cask --no-quarantine soundcloud-desktop
+            brew trust inkitori/tap
+            brew install --cask soundcloud-desktop
+            xattr -cr "/Applications/SoundCloud Desktop.app"
             ```
 
-            Or grab the `.dmg` below (unsigned — run
-            `xattr -cr "/Applications/SoundCloud Desktop.app"` after copying it in).
-            Existing installs update themselves automatically.
+            The `xattr` step clears macOS quarantine (the app is unsigned). On
+            Homebrew 5.x, skip `brew trust` and use `--no-quarantine` instead.
+
+            Or grab the `.dmg` below and run the same `xattr` command after
+            copying the app in. Existing installs update themselves automatically.
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
@@ -104,7 +108,7 @@ jobs:
             end
 
             auto_updates true
-            depends_on macos: ">= :catalina"
+            depends_on macos: :catalina
 
             app "SoundCloud Desktop.app"
 
@@ -117,8 +121,8 @@ jobs:
             ]
 
             caveats <<~CAVEATS
-              This app is not notarized with Apple. If you installed without
-              --no-quarantine, clear the quarantine flag before first launch:
+              This app is not notarized with Apple. Clear the quarantine flag
+              before first launch or macOS will claim the app is "damaged":
 
                 xattr -cr "/Applications/SoundCloud Desktop.app"
 

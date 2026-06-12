@@ -35,12 +35,15 @@ authenticated with your own account via an embedded sign-in window.
 
 ```sh
 brew tap inkitori/tap
-brew install --cask --no-quarantine soundcloud-desktop
+brew trust inkitori/tap
+brew install --cask soundcloud-desktop
+xattr -cr "/Applications/SoundCloud Desktop.app"
 ```
 
-`--no-quarantine` is needed because the app isn't notarized with Apple — without
-it, macOS claims the app is "damaged". If you already installed without it, run
-`xattr -cr "/Applications/SoundCloud Desktop.app"` once.
+The `xattr` step is needed because the app isn't notarized with Apple — without
+it, macOS claims the app is "damaged". On Homebrew 5.x, skip `brew trust` (it
+doesn't exist there) and use `brew install --cask --no-quarantine` instead of
+the `xattr` step.
 
 The app checks GitHub Releases on launch and updates itself in the background
 (restart from Settings when prompted) — no `brew upgrade` needed. You can also
