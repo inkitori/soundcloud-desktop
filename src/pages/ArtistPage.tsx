@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   useUser,
@@ -17,7 +17,7 @@ import { PlaylistRow } from "../components/PlaylistRow";
 import { TrackRow } from "../components/TrackRow";
 import { UserRow } from "../components/UserRow";
 import { artwork, fmtCount } from "../lib/format";
-import { toggleFollowUser, useAuthStore, useSocialStore } from "../lib/stores";
+import { sessionUnliked, toggleFollowUser, useAuthStore, useSocialStore } from "../lib/stores";
 import { playContext } from "../player/queueStore";
 
 const TABS = [
@@ -148,17 +148,22 @@ function UserTrackTab({ userId, kind }: { userId: number; kind: "popular" | "tra
       hasNextPage={!!q.hasNextPage}
       isFetchingNextPage={q.isFetchingNextPage}
       fetchNextPage={() => void q.fetchNextPage()}
+      fetchFailed={q.isFetchNextPageError}
     />
   );
 }
 
 function UserLikesTab({ userId }: { userId: number }) {
   const q = useUserLikes(userId);
-  const tracks = useMemo(
-    () =>
-      q.data?.pages.flatMap((p) => p.collection.flatMap((i) => (i.track ? [i.track] : []))) ?? [],
-    [q.data],
-  );
+  const isMe = useAuthStore((s) => s.status?.me?.id === userId);
+  // On your own profile, hide tracks unliked before this mount: the server can
+  // lag the unlike, but a row unliked while on the tab stays so it can be undone.
+  const hidden = useRef(new Set(sessionUnliked)).current;
+  const tracks = useMemo(() => {
+    const all =
+      q.data?.pages.flatMap((p) => p.collection.flatMap((i) => (i.track ? [i.track] : []))) ?? [];
+    return isMe ? all.filter((t) => !hidden.has(t.id)) : all;
+  }, [q.data, isMe, hidden]);
   if (q.isLoading) return <Loading />;
   return (
     <InfiniteTrackList
@@ -166,6 +171,7 @@ function UserLikesTab({ userId }: { userId: number }) {
       hasNextPage={!!q.hasNextPage}
       isFetchingNextPage={q.isFetchingNextPage}
       fetchNextPage={() => void q.fetchNextPage()}
+      fetchFailed={q.isFetchNextPageError}
     />
   );
 }

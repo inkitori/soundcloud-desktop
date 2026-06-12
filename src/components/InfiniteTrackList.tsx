@@ -10,6 +10,8 @@ interface InfiniteTrackListProps {
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: () => void;
+  /** A next-page fetch failed; stop auto-fetching or the effect hot-loops. */
+  fetchFailed?: boolean;
   header?: React.ReactNode;
 }
 
@@ -19,11 +21,13 @@ export function InfiniteTrackList({
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
+  fetchFailed = false,
   header,
 }: InfiniteTrackListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  const count = tracks.length + (hasNextPage ? 1 : 0);
+  const more = hasNextPage && !fetchFailed;
+  const count = tracks.length + (more ? 1 : 0);
   const virtualizer = useVirtualizer({
     count,
     getScrollElement: () => parentRef.current,
@@ -36,10 +40,10 @@ export function InfiniteTrackList({
 
   useEffect(() => {
     if (!lastItem) return;
-    if (lastItem.index >= tracks.length - 1 && hasNextPage && !isFetchingNextPage) {
+    if (lastItem.index >= tracks.length - 1 && more && !isFetchingNextPage) {
       fetchNextPage();
     }
-  }, [lastItem?.index, tracks.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [lastItem?.index, tracks.length, more, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div ref={parentRef} className="h-full overflow-y-auto px-4 pb-4">

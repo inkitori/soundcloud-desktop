@@ -12,7 +12,10 @@ function useInfinite<T>(
     queryKey: key,
     queryFn: ({ pageParam }) => fetcher(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (last) => last.next_href ?? undefined,
+    // api-v2 returns a next_href even on short/empty final pages; an empty
+    // page is the only reliable end-of-list signal.
+    getNextPageParam: (last) =>
+      last.collection.length > 0 ? (last.next_href ?? undefined) : undefined,
     enabled,
     staleTime: 60_000,
     retry: 1,

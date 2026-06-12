@@ -44,6 +44,7 @@ export async function refreshAuth() {
 function resetAccountState(loggedIn: boolean) {
   queryClient.clear();
   socialIdsLoaded = false;
+  sessionUnliked.clear();
   useLikedStore.setState({ ids: new Set() });
   useSocialStore.setState({
     repostedTracks: new Set(),
@@ -80,11 +81,19 @@ interface LikedState {
 
 export const useLikedStore = create<LikedState>(() => ({ ids: new Set() }));
 
+/**
+ * Tracks unliked this session. SoundCloud's likes index can keep returning an
+ * unliked track for a while, so without this a likes refetch would re-mark it
+ * liked (markLiked) and the likes lists would keep showing it after a revisit.
+ */
+export const sessionUnliked = new Set<number>();
+
 export function markLiked(ids: number[]) {
-  if (ids.length === 0) return;
+  const fresh = ids.filter((id) => !sessionUnliked.has(id));
+  if (fresh.length === 0) return;
   useLikedStore.setState((s) => {
     const next = new Set(s.ids);
-    for (const id of ids) next.add(id);
+    for (const id of fresh) next.add(id);
     return { ids: next };
   });
 }
@@ -141,7 +150,10 @@ export async function toggleLikeTrack(trackId: number) {
     (on) => (on ? api.likeTrack(trackId) : api.unlikeTrack(trackId)),
     "like",
   );
-  if (ok) staleAfterWrite(["my-likes"], ["user-likes", myId()]);
+  if (!ok) return;
+  if (useLikedStore.getState().ids.has(trackId)) sessionUnliked.delete(trackId);
+  else sessionUnliked.add(trackId);
+  staleAfterWrite(["my-likes"], ["user-likes", myId()]);
 }
 
 // ---- reposts / follows / playlist likes (same optimistic-set pattern) ----

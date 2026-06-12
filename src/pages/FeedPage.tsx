@@ -7,7 +7,15 @@ import { TrackRow } from "../components/TrackRow";
 import { playContext } from "../player/queueStore";
 
 export function FeedPage() {
-  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading, error } = useFeed();
+  const {
+    data,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+    isLoading,
+    error,
+  } = useFeed();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // /stream pages can overlap at the boundary, so the same item (same entity
@@ -33,13 +41,13 @@ export function FeedPage() {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
         void fetchNextPage();
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   if (isLoading) return <Centered><Spinner size={28} /></Centered>;
   if (error) return <Centered>Couldn't load your feed: {(error as Error).message}</Centered>;

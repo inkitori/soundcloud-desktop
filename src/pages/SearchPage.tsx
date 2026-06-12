@@ -67,7 +67,7 @@ export function SearchPage() {
 }
 
 function TrackResults({ query }: { query: string }) {
-  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } =
+  const { data, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage, isLoading } =
     useSearchTracks(query);
   const tracks = useMemo(() => data?.pages.flatMap((p) => p.collection) ?? [], [data]);
   if (isLoading) return <Loading />;
@@ -77,6 +77,7 @@ function TrackResults({ query }: { query: string }) {
       hasNextPage={!!hasNextPage}
       isFetchingNextPage={isFetchingNextPage}
       fetchNextPage={() => void fetchNextPage()}
+      fetchFailed={isFetchNextPageError}
     />
   );
 }

@@ -5,8 +5,15 @@ import { PlaylistCard } from "../components/PlaylistCard";
 import { openCreatePlaylist } from "../lib/modals";
 
 export function PlaylistsPage() {
-  const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading, error } =
-    useMyPlaylists();
+  const {
+    data,
+    hasNextPage,
+    isFetchingNextPage,
+    isFetchNextPageError,
+    fetchNextPage,
+    isLoading,
+    error,
+  } = useMyPlaylists();
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const playlists = useMemo(() => data?.pages.flatMap((p) => p.collection) ?? [], [data]);
@@ -15,13 +22,13 @@ export function PlaylistsPage() {
     const el = sentinelRef.current;
     if (!el) return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage && !isFetchNextPageError) {
         void fetchNextPage();
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   if (isLoading) {
     return (

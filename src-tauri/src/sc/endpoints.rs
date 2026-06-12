@@ -20,10 +20,28 @@ impl ScClient {
         next: Option<String>,
         limit: u32,
     ) -> Result<Page<T>> {
-        let v = match next {
+        let mut v = match next {
             Some(href) => self.get_value(&href, &[]).await?,
             None => self.get_value(path, &lp(limit)).await?,
         };
+        // api-v2 slices a page by cursor and then filters it server-side, so a
+        // page can come back empty yet still carry a next_href — including past
+        // the true end of the list. Chase a few so callers never see an
+        // "empty but more available" page.
+        for _ in 0..3 {
+            let has_items = v
+                .get("collection")
+                .and_then(Value::as_array)
+                .map_or(false, |a| !a.is_empty());
+            if has_items {
+                break;
+            }
+            let Some(href) = v.get("next_href").and_then(Value::as_str).map(str::to_owned)
+            else {
+                break;
+            };
+            v = self.get_value(&href, &[]).await?;
+        }
         Ok(parse_page(v))
     }
 
