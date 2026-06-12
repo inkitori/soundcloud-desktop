@@ -27,9 +27,18 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJGRkNEMDk4OEVGMDU1N0QKUldSOVZmQ09tTkQ4djltbnpoWUNnVEliN3lweWljUExXZnFnQjJwT1lLaEMxZXhVZHFha1lDUTAK",
+      "endpoints": [
+        "https://github.com/inkitori/soundcloud-desktop/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

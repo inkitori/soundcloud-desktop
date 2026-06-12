@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "SoundCloud Desktop ${{ github.ref_name }}"
+          releaseBody: |
+            Install with Homebrew:
+
+            ```sh
+            brew tap inkitori/tap
+            brew install --cask --no-quarantine soundcloud-desktop
+            ```
+
+            Or grab the `.dmg` below (unsigned — run
+            `xattr -cr "/Applications/SoundCloud Desktop.app"` after copying it in).
+            Existing installs update themselves automatically.
+          includeUpdaterJson: true
+          args: --target universal-apple-darwin
+
+  homebrew:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch release DMG info
+        id: dmg
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          ASSET=$(gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json assets \
+            -q '.assets[] | select(.name | endswith(".dmg")) | .name')
+          curl -fsSL -o app.dmg \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$ASSET"
+          SHA=$(sha256sum app.dmg | cut -d' ' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: inkitori/homebrew-tap
+          ssh-key: ${{ secrets.TAP_DEPLOY_KEY }}
+          path: tap
+
+      - name: Update cask
+        env:
+          VERSION: ${{ steps.dmg.outputs.version }}
+          ASSET: ${{ steps.dmg.outputs.asset }}
+          SHA: ${{ steps.dmg.outputs.sha }}
+        run: |
+          mkdir -p tap/Casks
+          # Keep the cask's url version-templated so livecheck stays meaningful.
+          ASSET_TEMPLATE=$(printf '%s' "$ASSET" | sed "s/$VERSION/#{version}/g")
+          cat > tap/Casks/soundcloud-desktop.rb <<EOF
+          cask "soundcloud-desktop" do
+            version "${VERSION}"
+            sha256 "${SHA}"
+
+            url "https://github.com/inkitori/soundcloud-desktop/releases/download/v#{version}/${ASSET_TEMPLATE}"
+            name "SoundCloud Desktop"
+            desc "Unofficial SoundCloud desktop client"
+            homepage "https://github.com/inkitori/soundcloud-desktop"
+
+            livecheck do
+              url :url
+              strategy :github_latest
+            end
+
+            auto_updates true
+            depends_on macos: ">= :catalina"
+
+            app "SoundCloud Desktop.app"
+
+            zap trash: [
+              "~/Library/Application Support/com.enyouki.soundcloud",
+              "~/Library/Caches/com.enyouki.soundcloud",
+              "~/Library/Preferences/com.enyouki.soundcloud.plist",
+              "~/Library/Saved Application State/com.enyouki.soundcloud.savedState",
+              "~/Library/WebKit/com.enyouki.soundcloud",
+            ]
+
+            caveats <<~CAVEATS
+              This app is not notarized with Apple. If you installed without
+              --no-quarantine, clear the quarantine flag before first launch:
+
+                xattr -cr "/Applications/SoundCloud Desktop.app"
+
+              Optional: brew install ffmpeg (enables offline downloads as .m4a).
+            CAVEATS
+          end
+          EOF
+
+      - name: Push to tap
+        run: |
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/soundcloud-desktop.rb
+          git diff --cached --quiet && { echo "cask unchanged"; exit 0; }
+          git commit -m "soundcloud-desktop ${{ steps.dmg.outputs.version }}"
+          git push

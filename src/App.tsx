@@ -10,6 +10,7 @@ import { TokenGate } from "./components/TokenGate";
 import { TopBar } from "./components/TopBar";
 import { initEvents } from "./lib/events";
 import { refreshAuth, refreshDownloads, useAuthStore } from "./lib/stores";
+import { checkForUpdates } from "./lib/updater";
 import { ArtistPage } from "./pages/ArtistPage";
 import { FeedPage } from "./pages/FeedPage";
 import { LikesPage } from "./pages/LikesPage";
@@ -29,6 +30,7 @@ export default function App() {
     void refreshDownloads();
     // The backend presence actor defaults to enabled; only the opt-out needs replaying.
     if (!discordRpcEnabled()) void api.discordSetEnabled(false);
+    void checkForUpdates({ silent: true });
   }, []);
 
   if (loading) {

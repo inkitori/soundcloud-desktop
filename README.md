@@ -25,7 +25,26 @@ authenticated with your own browser OAuth token.
 - **Discord Rich Presence** — "Listening to SoundCloud" with track, artist, artwork, and a live progress bar (Spotify-style); hides while paused, toggleable in Settings
 - Go+-only tracks play their 30s preview (free account); geo-blocked tracks are skipped
 
-## Setup
+## Install
+
+```sh
+brew tap inkitori/tap
+brew install --cask --no-quarantine soundcloud-desktop
+```
+
+`--no-quarantine` is needed because the app isn't notarized with Apple — without
+it, macOS claims the app is "damaged". If you already installed without it, run
+`xattr -cr "/Applications/SoundCloud Desktop.app"` once.
+
+The app checks GitHub Releases on launch and updates itself in the background
+(restart from Settings when prompted) — no `brew upgrade` needed. You can also
+grab the `.dmg` directly from
+[Releases](https://github.com/inkitori/soundcloud-desktop/releases).
+
+Optional: `brew install ffmpeg` enables offline downloads as `.m4a` (without it,
+downloads are stored as raw fMP4, which usually still plays).
+
+## Developing
 
 ```sh
 pnpm install
@@ -33,8 +52,27 @@ pnpm tauri dev      # development
 pnpm tauri build    # produces the .app under src-tauri/target/release/bundle/macOS/
 ```
 
-Requirements: Rust, Node + pnpm, and optionally `ffmpeg` (Homebrew) for offline
-downloads (without it, downloads are stored as raw fMP4, which usually still plays).
+Requirements: Rust, Node + pnpm.
+
+### Releasing
+
+Releases are built and published by CI (`.github/workflows/release.yml`) on a
+tag push:
+
+```sh
+scripts/release.sh 0.2.0     # bumps package.json / tauri.conf.json / Cargo.toml+lock, commits, tags
+git push origin main v0.2.0
+```
+
+CI builds a universal (Intel + Apple Silicon) macOS app, signs the updater
+artifacts, publishes a GitHub Release with the `.dmg` + `latest.json` update
+manifest, and bumps the cask in
+[inkitori/homebrew-tap](https://github.com/inkitori/homebrew-tap).
+
+Two repo secrets drive this: `TAURI_SIGNING_PRIVATE_KEY` (updater signing key —
+the local copy lives at `~/.tauri/soundcloud-desktop.key`; if it's lost,
+existing installs can never verify another update) and `TAP_DEPLOY_KEY` (SSH
+deploy key with write access to the tap repo).
 
 ## Connecting your account
 

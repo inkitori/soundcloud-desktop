@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { api } from "../api/commands";
 import { useCacheStats } from "../api/queries";
 import type { AppError } from "../api/types";
 import { Spinner } from "../components/Icons";
 import { fmtBytes } from "../lib/format";
 import { refreshAuth, refreshDownloads, useAuthStore, useDownloadStore } from "../lib/stores";
+import { checkForUpdates, restartToUpdate, useUpdateStore } from "../lib/updater";
 
 export function SettingsPage() {
   const me = useAuthStore((s) => s.status?.me);
@@ -16,6 +18,7 @@ export function SettingsPage() {
         <AccountSection username={me?.username} />
         <DiscordSection />
         <CacheSection />
+        <UpdatesSection />
       </div>
     </div>
   );
@@ -185,6 +188,65 @@ function DiscordSection() {
 
 export function discordRpcEnabled(): boolean {
   return localStorage.getItem("discordRpc") !== "0";
+}
+
+function UpdatesSection() {
+  const { phase, version, error } = useUpdateStore();
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    void getVersion().then(setAppVersion);
+  }, []);
+
+  const status = {
+    idle: null,
+    checking: "Checking…",
+    downloading: `Downloading v${version}…`,
+    ready: `v${version} downloaded — restart to apply`,
+    upToDate: "You're on the latest version.",
+    error: error,
+  }[phase];
+
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        Updates
+      </h2>
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <p className="text-sm text-zinc-300">
+          SoundCloud Desktop{" "}
+          <span className="font-semibold text-zinc-100">{appVersion ?? "…"}</span>
+        </p>
+        <p className="mt-1 text-xs text-zinc-500">
+          Updates are checked automatically on launch and downloaded in the background.
+        </p>
+        <div className="mt-3 flex items-center gap-3">
+          {phase === "ready" ? (
+            <button
+              onClick={() => void restartToUpdate()}
+              className="rounded-md bg-orange-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-orange-500"
+            >
+              Restart to update
+            </button>
+          ) : (
+            <button
+              onClick={() => void checkForUpdates({ silent: false })}
+              disabled={phase === "checking" || phase === "downloading"}
+              className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/15 disabled:opacity-40"
+            >
+              {(phase === "checking" || phase === "downloading") && <Spinner size={12} />}
+              Check for updates
+            </button>
+          )}
+          {status && (
+            <span className={`text-xs ${phase === "error" ? "text-red-400" : "text-zinc-400"}`}>
+              {status}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function CacheSection() {
