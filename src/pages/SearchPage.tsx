@@ -4,7 +4,7 @@ import { useSearchPlaylists, useSearchTracks, useSearchUsers } from "../api/quer
 import type { User } from "../api/types";
 import { IconSearch, Spinner } from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
-import { PlaylistCard } from "../components/PlaylistCard";
+import { PlaylistRow } from "../components/PlaylistRow";
 import { artwork, fmtCount } from "../lib/format";
 
 type Tab = "tracks" | "artists" | "playlists";
@@ -141,9 +141,9 @@ function PlaylistResults({ query }: { query: string }) {
   if (isLoading) return <Loading />;
   return (
     <div className="h-full overflow-y-auto px-4 pb-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="space-y-2">
         {playlists.map((p) => (
-          <PlaylistCard key={p.id} playlist={p} />
+          <PlaylistRow key={p.id} playlist={p} />
         ))}
       </div>
       {hasNextPage && (

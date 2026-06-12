@@ -76,6 +76,14 @@ export function useUserPlaylists(id: number) {
   return useInfinite(["user-playlists", id], (next) => api.getUserPlaylists(id, next));
 }
 
+export function useUserAlbums(id: number) {
+  return useInfinite(["user-albums", id], (next) => api.getUserAlbums(id, next));
+}
+
+export function useUserReposts(id: number) {
+  return useInfinite(["user-reposts", id], (next) => api.getUserReposts(id, next));
+}
+
 export function useSearchTracks(q: string) {
   return useInfinite(["search", "tracks", q], (next) => api.searchTracks(q, next), q.length > 1);
 }

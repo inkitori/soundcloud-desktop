@@ -125,6 +125,49 @@ impl ScClient {
             .await
     }
 
+    pub async fn ep_user_albums(&self, id: u64, next: Option<String>) -> Result<Page<Playlist>> {
+        self.page(&format!("/users/{id}/albums"), next, 24).await
+    }
+
+    /// A user's reposts (the profile "Reposts" tab). Same item shape as the
+    /// home feed: track-repost / playlist-repost entries.
+    pub async fn ep_user_reposts(&self, id: u64, next: Option<String>) -> Result<Page<FeedItem>> {
+        self.page(&format!("/stream/users/{id}/reposts"), next, 24)
+            .await
+    }
+
+    /// One of the id-set endpoints the web app preloads to light up
+    /// heart/repost/follow state (`/me/track_likes/ids`, `/me/track_reposts/ids`,
+    /// `/me/followings/ids`, …). Pages defensively; tolerant of shape drift.
+    pub async fn ep_my_ids(&self, what: &str) -> Result<Vec<u64>> {
+        let mut out = Vec::new();
+        let mut next: Option<String> = None;
+        for _ in 0..10 {
+            let v = match &next {
+                Some(href) => self.get_value(href, &[]).await?,
+                None => {
+                    self.get_value(&format!("/me/{what}/ids"), &lp(5000))
+                        .await?
+                }
+            };
+            let items = v
+                .get("collection")
+                .and_then(Value::as_array)
+                .cloned()
+                .or_else(|| v.as_array().cloned())
+                .unwrap_or_default();
+            out.extend(items.iter().filter_map(Value::as_u64));
+            next = v
+                .get("next_href")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            if next.is_none() {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     pub async fn ep_related(&self, track_id: u64, next: Option<String>) -> Result<Page<Track>> {
         self.page(&format!("/tracks/{track_id}/related"), next, 20)
             .await
@@ -253,6 +296,60 @@ impl ScClient {
             .filter(|id| *id != track_id)
             .collect();
         self.ep_playlist_set_tracks(playlist_id, ids).await?;
+        Ok(())
+    }
+
+    /// Create a playlist (web app shape: POST /playlists
+    /// {"playlist":{"title":…,"sharing":"public"|"private","tracks":[ids]}}).
+    /// If creation fails, re-verify the body against DevTools on soundcloud.com.
+    pub async fn ep_create_playlist(
+        &self,
+        title: &str,
+        public: bool,
+        track_ids: Vec<u64>,
+    ) -> Result<Playlist> {
+        let v = self
+            .request_value(
+                Method::POST,
+                "/playlists",
+                &[],
+                Some(json!({
+                    "playlist": {
+                        "title": title,
+                        "sharing": if public { "public" } else { "private" },
+                        "tracks": track_ids,
+                    }
+                })),
+            )
+            .await?;
+        serde_path_to_error::deserialize(v)
+            .map_err(|e| AppError::Other(format!("playlist decode at `{}`: {e}", e.path())))
+    }
+
+    pub async fn ep_set_track_repost(&self, track_id: u64, on: bool) -> Result<()> {
+        let method = if on { Method::PUT } else { Method::DELETE };
+        self.request_value(method, &format!("/me/track_reposts/{track_id}"), &[], None)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn ep_set_playlist_repost(&self, playlist_id: u64, on: bool) -> Result<()> {
+        let method = if on { Method::PUT } else { Method::DELETE };
+        self.request_value(
+            method,
+            &format!("/me/playlist_reposts/{playlist_id}"),
+            &[],
+            None,
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// Follow/unfollow (web app shape: POST/DELETE /me/followings/{id}).
+    pub async fn ep_set_follow(&self, user_id: u64, on: bool) -> Result<()> {
+        let method = if on { Method::POST } else { Method::DELETE };
+        self.request_value(method, &format!("/me/followings/{user_id}"), &[], None)
+            .await?;
         Ok(())
     }
 }

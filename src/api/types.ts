@@ -111,6 +111,14 @@ export type PlaybackSource =
   | { kind: "cached"; asset_path: string }
   | ({ kind: "stream" } & ResolvedStream);
 
+export interface SocialIds {
+  liked_tracks: number[];
+  liked_playlists: number[];
+  reposted_tracks: number[];
+  reposted_playlists: number[];
+  followed_users: number[];
+}
+
 export interface AuthStatus {
   logged_in: boolean;
   me?: User | null;

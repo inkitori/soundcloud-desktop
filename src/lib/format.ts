@@ -51,6 +51,11 @@ export function isBlocked(track: Track): boolean {
   return track.policy === "BLOCK";
 }
 
+/** Playlist track entries beyond the first ~5 arrive as {id}-only stubs. */
+export function isStub(track: Track): boolean {
+  return track.title == null && track.media == null;
+}
+
 export function isSnipped(track: Track): boolean {
   return track.policy === "SNIP";
 }

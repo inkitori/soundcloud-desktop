@@ -1,7 +1,16 @@
 import { listen } from "@tauri-apps/api/event";
+import type { User } from "../api/types";
 import { audioController } from "../player/audioController";
 import { next, prev } from "../player/queueStore";
-import { refreshDownloads, setDownloadProgress, useAuthStore } from "./stores";
+import { useLoginStore } from "./login";
+import { closeAuthModal, openAuthModal } from "./modals";
+import {
+  loadSocialIds,
+  refreshAuth,
+  refreshDownloads,
+  setDownloadProgress,
+  useAuthStore,
+} from "./stores";
 import { showToast } from "./toast";
 
 let initialized = false;
@@ -36,7 +45,22 @@ export function initEvents() {
   });
 
   void listen("auth:expired", () => {
+    // Only interrupt once per expiry; the banner stays as the reminder.
+    if (!useAuthStore.getState().expired) openAuthModal("expired");
     useAuthStore.setState({ expired: true });
+  });
+
+  void listen<User>("login:success", (event) => {
+    useLoginStore.setState({ waiting: false });
+    closeAuthModal();
+    useAuthStore.setState({ expired: false });
+    void refreshAuth();
+    void loadSocialIds(true);
+    showToast(`Signed in as ${event.payload.username ?? "you"}`);
+  });
+
+  void listen("login:closed", () => {
+    useLoginStore.setState({ waiting: false });
   });
 
   void listen<{ track_id: number; pct: number }>("download:progress", (event) => {

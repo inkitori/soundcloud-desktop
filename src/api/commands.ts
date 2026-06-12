@@ -9,6 +9,7 @@ import type {
   PlaybackSource,
   Playlist,
   ResolvedEntity,
+  SocialIds,
   Track,
   User,
   Waveform,
@@ -20,6 +21,8 @@ export const api = {
   authSetToken: (token: string) => invoke<User>("auth_set_token", { token }),
   authClearToken: () => invoke<void>("auth_clear_token"),
   authSetDatadome: (cookie: string) => invoke<void>("auth_set_datadome", { cookie }),
+  loginStart: () => invoke<void>("login_start"),
+  loginCancel: () => invoke<void>("login_cancel"),
 
   // reads
   getStream: (nextHref?: string) =>
@@ -40,6 +43,11 @@ export const api = {
     invoke<Page<LikeItem>>("get_user_likes", { id, nextHref: nextHref ?? null }),
   getUserPlaylists: (id: number, nextHref?: string) =>
     invoke<Page<Playlist>>("get_user_playlists", { id, nextHref: nextHref ?? null }),
+  getUserAlbums: (id: number, nextHref?: string) =>
+    invoke<Page<Playlist>>("get_user_albums", { id, nextHref: nextHref ?? null }),
+  getUserReposts: (id: number, nextHref?: string) =>
+    invoke<Page<FeedItem>>("get_user_reposts", { id, nextHref: nextHref ?? null }),
+  getSocialIds: () => invoke<SocialIds>("get_social_ids"),
   getRelatedTracks: (trackId: number, nextHref?: string) =>
     invoke<Page<Track>>("get_related_tracks", { trackId, nextHref: nextHref ?? null }),
   searchTracks: (q: string, nextHref?: string) =>
@@ -65,6 +73,14 @@ export const api = {
     invoke<void>("playlist_add_track", { playlistId, trackId }),
   playlistRemoveTrack: (playlistId: number, trackId: number) =>
     invoke<void>("playlist_remove_track", { playlistId, trackId }),
+  createPlaylist: (title: string, isPublic: boolean, trackIds: number[]) =>
+    invoke<Playlist>("create_playlist", { title, isPublic, trackIds }),
+  repostTrack: (trackId: number) => invoke<void>("repost_track", { trackId }),
+  unrepostTrack: (trackId: number) => invoke<void>("unrepost_track", { trackId }),
+  repostPlaylist: (playlistId: number) => invoke<void>("repost_playlist", { playlistId }),
+  unrepostPlaylist: (playlistId: number) => invoke<void>("unrepost_playlist", { playlistId }),
+  followUser: (userId: number) => invoke<void>("follow_user", { userId }),
+  unfollowUser: (userId: number) => invoke<void>("unfollow_user", { userId }),
 
   // downloads
   downloadTrack: (trackId: number, pin = true) =>

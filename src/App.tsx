@@ -1,15 +1,23 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { api } from "./api/commands";
+import { AuthModals } from "./components/AuthModals";
 import { IconCloud, Spinner } from "./components/Icons";
 import { PlayerBar } from "./components/PlayerBar";
+import { PlaylistModals } from "./components/PlaylistModals";
 import { QueuePanel } from "./components/QueuePanel";
 import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { TokenGate } from "./components/TokenGate";
 import { TopBar } from "./components/TopBar";
 import { initEvents } from "./lib/events";
-import { refreshAuth, refreshDownloads, useAuthStore } from "./lib/stores";
+import { startLogin } from "./lib/login";
+import {
+  loadSocialIds,
+  refreshAuth,
+  refreshDownloads,
+  useAuthStore,
+} from "./lib/stores";
 import { checkForUpdates } from "./lib/updater";
 import { ArtistPage } from "./pages/ArtistPage";
 import { FeedPage } from "./pages/FeedPage";
@@ -33,6 +41,14 @@ export default function App() {
     void checkForUpdates({ silent: true });
   }, []);
 
+  // Mirror like/repost/follow ids once signed in; delayed so the first
+  // screen's requests win the rate limiter.
+  useEffect(() => {
+    if (!loggedIn) return;
+    const t = setTimeout(() => void loadSocialIds(), 3500);
+    return () => clearTimeout(t);
+  }, [loggedIn]);
+
   if (loading) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-orange-500">
@@ -43,7 +59,12 @@ export default function App() {
   }
 
   if (!loggedIn) {
-    return <TokenGate />;
+    return (
+      <>
+        <TokenGate />
+        <Toasts />
+      </>
+    );
   }
 
   return (
@@ -70,6 +91,8 @@ export default function App() {
         <Toasts />
       </div>
       <PlayerBar />
+      <AuthModals />
+      <PlaylistModals />
     </div>
   );
 }
@@ -77,10 +100,10 @@ export default function App() {
 function ExpiredBanner() {
   return (
     <div className="flex shrink-0 items-center justify-center gap-2 bg-amber-600/90 px-4 py-1.5 text-xs font-medium text-white">
-      Your SoundCloud token expired — paste a fresh one in
-      <a href="#/settings" className="underline">
-        Settings
-      </a>
+      Your SoundCloud session expired —
+      <button onClick={() => void startLogin()} className="font-semibold underline">
+        sign in again
+      </button>
     </div>
   );
 }

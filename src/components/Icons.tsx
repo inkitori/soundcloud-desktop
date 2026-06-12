@@ -86,6 +86,15 @@ export const IconCloud = svg(
 export const IconExternal = svg(
   <path d="M14 5h5v5h-2V8.4l-7.3 7.3-1.4-1.4L15.6 7H14zM5 7h6v2H7v8h8v-4h2v6H5z" />,
 );
+export const IconRepost = svg(
+  <path d="M17 2l4 4-4 4V7H8a3 3 0 0 0-3 3v2H3v-2a5 5 0 0 1 5-5h9V2zM7 22l-4-4 4-4v3h9a3 3 0 0 0 3-3v-2h2v2a5 5 0 0 1-5 5H7v3z" />,
+);
+export const IconPlaylistAdd = svg(
+  <path d="M3 6h12v2H3zm0 4h12v2H3zm0 4h8v2H3zm15 0v-3h2v3h3v2h-3v3h-2v-3h-3v-2z" />,
+);
+export const IconUser = svg(
+  <path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5z" />,
+);
 
 export function Spinner({ size = 18, className = "" }: IconProps) {
   return (

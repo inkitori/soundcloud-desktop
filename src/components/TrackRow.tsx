@@ -9,11 +9,14 @@ import {
   trackArtist,
   trackTitle,
 } from "../lib/format";
+import { openAddToPlaylist } from "../lib/modals";
 import {
   refreshDownloads,
   toggleLikeTrack,
+  toggleRepostTrack,
   useDownloadStore,
   useLikedStore,
+  useSocialStore,
 } from "../lib/stores";
 import { showToast } from "../lib/toast";
 import { usePlayerStore } from "../player/playerStore";
@@ -25,7 +28,9 @@ import {
   IconHeartFilled,
   IconPause,
   IconPlay,
+  IconPlaylistAdd,
   IconPlus,
+  IconRepost,
   Spinner,
 } from "./Icons";
 
@@ -38,6 +43,7 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
   const isCurrent = usePlayerStore((s) => s.track?.id === track.id);
   const isPlaying = usePlayerStore((s) => s.status === "playing") && isCurrent;
   const liked = useLikedStore((s) => s.ids.has(track.id));
+  const reposted = useSocialStore((s) => s.repostedTracks.has(track.id));
   const cached = useDownloadStore((s) => track.id in s.cached);
   const progress = useDownloadStore((s) => s.progress[track.id]);
 
@@ -111,6 +117,15 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
           {liked ? <IconHeartFilled size={15} /> : <IconHeart size={15} />}
         </button>
         <button
+          onClick={() => void toggleRepostTrack(track.id)}
+          className={`rounded p-1.5 hover:bg-white/10 ${
+            reposted ? "text-orange-500 opacity-100" : "text-zinc-400"
+          }`}
+          title={reposted ? "Remove repost" : "Repost"}
+        >
+          <IconRepost size={15} />
+        </button>
+        <button
           onClick={() => {
             addLast(track);
             showToast(`Added "${trackTitle(track)}" to queue`);
@@ -119,6 +134,13 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
           title="Add to queue"
         >
           <IconPlus size={15} />
+        </button>
+        <button
+          onClick={() => openAddToPlaylist(track)}
+          className="rounded p-1.5 text-zinc-400 hover:bg-white/10"
+          title="Add to playlist"
+        >
+          <IconPlaylistAdd size={15} />
         </button>
         <DownloadButton trackId={track.id} cached={cached} progress={progress} blocked={blocked} />
       </div>

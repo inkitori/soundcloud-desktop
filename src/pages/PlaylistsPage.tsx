@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useMyPlaylists } from "../api/queries";
-import { Spinner } from "../components/Icons";
+import { IconPlus, Spinner } from "../components/Icons";
 import { PlaylistCard } from "../components/PlaylistCard";
+import { openCreatePlaylist } from "../lib/modals";
 
 export function PlaylistsPage() {
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading, error } =
@@ -39,7 +40,16 @@ export function PlaylistsPage() {
 
   return (
     <div className="h-full overflow-y-auto px-4 pb-4">
-      <h1 className="px-2 py-4 text-lg font-bold text-zinc-100">Playlists & albums</h1>
+      <div className="flex items-center justify-between px-2 py-4">
+        <h1 className="text-lg font-bold text-zinc-100">Playlists & albums</h1>
+        <button
+          onClick={openCreatePlaylist}
+          className="flex items-center gap-1.5 rounded-full bg-white/5 px-4 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10"
+        >
+          <IconPlus size={14} />
+          New playlist
+        </button>
+      </div>
       <div className="flex flex-wrap gap-2">
         {playlists.map((p) => (
           <PlaylistCard key={p.id} playlist={p} />

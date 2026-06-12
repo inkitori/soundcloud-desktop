@@ -2,7 +2,7 @@
 
 A personal SoundCloud client for macOS. Tauri 2 + Rust backend, React frontend.
 Custom UI over SoundCloud's internal `api-v2` (the same API their web app uses),
-authenticated with your own browser OAuth token.
+authenticated with your own account via an embedded sign-in window.
 
 ## Screenshots
 
@@ -16,9 +16,15 @@ authenticated with your own browser OAuth token.
 
 ## Features
 
+- **Sign in with SoundCloud** — embedded sign-in window, no token copying; the
+  session (and DataDome clearance for write ops) is captured automatically
 - **Home feed** — tracks and reposts from artists you follow, infinite scroll
-- **Likes & playlists** — browse/play your library; like/unlike; add/remove playlist tracks
-- **Search & artist pages** — tracks / artists / playlists, with popular & likes tabs
+- **Likes, reposts & follows** — like/repost tracks and playlists, follow artists,
+  all with instant toggles everywhere
+- **Playlists** — browse/play your library, create playlists, add/remove tracks
+  via an add-to-playlist picker
+- **Search & artist pages** — tracks / artists / playlists, with popular, albums,
+  reposts & likes tabs; your own profile (uploads + reposts) lives in the sidebar
 - **Station autoplay** — when the queue runs out, related tracks keep playing (toggleable)
 - **Offline downloads** — cache tracks locally (HLS → ffmpeg remux to .m4a), LRU cache with size cap, plays offline
 - **Real player** — queue management, canvas waveform seeking, media keys, macOS Now Playing / Control Center integration
@@ -76,14 +82,20 @@ deploy key with write access to the tap repo).
 
 ## Connecting your account
 
-The app needs your SoundCloud OAuth token (one-time paste, stored in the macOS Keychain):
+Click **Sign in with SoundCloud** on first run: a SoundCloud sign-in window
+opens, you log in like normal, and it closes by itself once the app has
+captured the session (stored in the macOS Keychain). The same window also
+yields a DataDome clearance cookie, which is what unblocks likes, reposts and
+playlist edits.
 
-1. Open **soundcloud.com** in your browser, logged in.
-2. DevTools (`⌘⌥I`) → **Storage** tab (Firefox) / **Application** tab (Chrome) → **Cookies** → `https://soundcloud.com`.
-3. Copy the value of the `oauth_token` cookie (starts with `2-`).
-4. Paste it into the app's connect screen.
+When the session expires (or SoundCloud's bot protection starts blocking
+writes), the app shows a dialog — **Sign in again** reopens the window, which
+usually closes within seconds because the webview still has a live SoundCloud
+session.
 
-Tokens occasionally expire — the app shows a banner and you paste a fresh one in Settings.
+Manual fallback: both the `oauth_token` and `datadome` cookies can still be
+pasted by hand (connect screen → "Sign in manually", or Settings → Advanced)
+— copy them from your browser's DevTools → Cookies → soundcloud.com.
 
 ## How it works / maintenance notes
 
@@ -100,10 +112,11 @@ Known moving parts, and where they're handled:
 - Some transcodings (e.g. `abr_sq`) return 404 on free accounts — the resolver
   falls through candidates by quality (`src-tauri/src/media/resolver.rs`).
 - **Write-op endpoint shapes** (`PUT /users/{me}/track_likes/{id}`,
-  `PUT /playlists/{id}` with a full track-id array) follow the web app's known
-  patterns but were not verified against a live account at build time. If a write
-  fails, capture the exact request on soundcloud.com via DevTools → Network and
-  adjust `src-tauri/src/sc/endpoints.rs`.
+  `PUT /playlists/{id}` with a full track-id array, `PUT /me/track_reposts/{id}`,
+  `POST /me/followings/{id}`, `POST /playlists` for creation) follow the web
+  app's known patterns but were not verified against a live account at build
+  time. If a write fails, capture the exact request on soundcloud.com via
+  DevTools → Network and adjust `src-tauri/src/sc/endpoints.rs`.
 - **Rate limiting**: a global ~800ms gap between api-v2 calls; 429s honor
   Retry-After with backoff.
 

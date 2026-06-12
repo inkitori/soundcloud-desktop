@@ -171,6 +171,17 @@ pub enum ResolvedEntity {
     Unknown,
 }
 
+/// The id sets behind heart/repost/follow toggles, mirrored client-side so
+/// every row can show its state without per-item requests.
+#[derive(Debug, Clone, Serialize)]
+pub struct SocialIds {
+    pub liked_tracks: Vec<u64>,
+    pub liked_playlists: Vec<u64>,
+    pub reposted_tracks: Vec<u64>,
+    pub reposted_playlists: Vec<u64>,
+    pub followed_users: Vec<u64>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct AuthStatus {
     pub logged_in: bool,

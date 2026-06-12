@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFeed } from "../api/queries";
 import type { FeedItem, Track } from "../api/types";
 import { IconRadio, Spinner } from "../components/Icons";
-import { PlaylistCard } from "../components/PlaylistCard";
+import { PlaylistRow } from "../components/PlaylistRow";
 import { TrackRow } from "../components/TrackRow";
 import { playContext } from "../player/queueStore";
 
@@ -101,9 +101,7 @@ function FeedRow({
     return (
       <div>
         {attribution}
-        <div className="px-2 py-1">
-          <PlaylistCard playlist={item.playlist} />
-        </div>
+        <PlaylistRow playlist={item.playlist} />
       </div>
     );
   }

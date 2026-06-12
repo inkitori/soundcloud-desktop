@@ -86,6 +86,17 @@ pub async fn auth_clear_token(sc: Sc<'_>) -> Result<()> {
     Ok(())
 }
 
+#[tauri::command]
+pub async fn login_start(app: AppHandle, sc: Sc<'_>) -> Result<()> {
+    crate::sc::login::start(app, Arc::clone(&sc))
+}
+
+#[tauri::command]
+pub async fn login_cancel(app: AppHandle) -> Result<()> {
+    crate::sc::login::cancel(&app);
+    Ok(())
+}
+
 // ---- read endpoints ----
 
 #[tauri::command]
@@ -157,6 +168,37 @@ pub async fn get_user_playlists(
     next_href: Option<String>,
 ) -> Result<Page<Playlist>> {
     sc.ep_user_playlists(id, next_href).await
+}
+
+#[tauri::command]
+pub async fn get_user_albums(
+    sc: Sc<'_>,
+    id: u64,
+    next_href: Option<String>,
+) -> Result<Page<Playlist>> {
+    sc.ep_user_albums(id, next_href).await
+}
+
+#[tauri::command]
+pub async fn get_user_reposts(
+    sc: Sc<'_>,
+    id: u64,
+    next_href: Option<String>,
+) -> Result<Page<FeedItem>> {
+    sc.ep_user_reposts(id, next_href).await
+}
+
+/// Fetch the full id sets for likes/reposts/followings. Each set degrades to
+/// empty on failure so one flaky endpoint doesn't blank the others.
+#[tauri::command]
+pub async fn get_social_ids(sc: Sc<'_>) -> Result<SocialIds> {
+    Ok(SocialIds {
+        liked_tracks: sc.ep_my_ids("track_likes").await.unwrap_or_default(),
+        liked_playlists: sc.ep_my_ids("playlist_likes").await.unwrap_or_default(),
+        reposted_tracks: sc.ep_my_ids("track_reposts").await.unwrap_or_default(),
+        reposted_playlists: sc.ep_my_ids("playlist_reposts").await.unwrap_or_default(),
+        followed_users: sc.ep_my_ids("followings").await.unwrap_or_default(),
+    })
 }
 
 #[tauri::command]
@@ -245,6 +287,46 @@ pub async fn playlist_add_track(sc: Sc<'_>, playlist_id: u64, track_id: u64) -> 
 #[tauri::command]
 pub async fn playlist_remove_track(sc: Sc<'_>, playlist_id: u64, track_id: u64) -> Result<()> {
     sc.ep_playlist_remove_track(playlist_id, track_id).await
+}
+
+#[tauri::command]
+pub async fn create_playlist(
+    sc: Sc<'_>,
+    title: String,
+    is_public: bool,
+    track_ids: Vec<u64>,
+) -> Result<Playlist> {
+    sc.ep_create_playlist(&title, is_public, track_ids).await
+}
+
+#[tauri::command]
+pub async fn repost_track(sc: Sc<'_>, track_id: u64) -> Result<()> {
+    sc.ep_set_track_repost(track_id, true).await
+}
+
+#[tauri::command]
+pub async fn unrepost_track(sc: Sc<'_>, track_id: u64) -> Result<()> {
+    sc.ep_set_track_repost(track_id, false).await
+}
+
+#[tauri::command]
+pub async fn repost_playlist(sc: Sc<'_>, playlist_id: u64) -> Result<()> {
+    sc.ep_set_playlist_repost(playlist_id, true).await
+}
+
+#[tauri::command]
+pub async fn unrepost_playlist(sc: Sc<'_>, playlist_id: u64) -> Result<()> {
+    sc.ep_set_playlist_repost(playlist_id, false).await
+}
+
+#[tauri::command]
+pub async fn follow_user(sc: Sc<'_>, user_id: u64) -> Result<()> {
+    sc.ep_set_follow(user_id, true).await
+}
+
+#[tauri::command]
+pub async fn unfollow_user(sc: Sc<'_>, user_id: u64) -> Result<()> {
+    sc.ep_set_follow(user_id, false).await
 }
 
 // ---- downloads / cache ----

@@ -5,6 +5,7 @@ import { useCacheStats } from "../api/queries";
 import type { AppError } from "../api/types";
 import { Spinner } from "../components/Icons";
 import { fmtBytes } from "../lib/format";
+import { cancelLogin, startLogin, useLoginStore } from "../lib/login";
 import { refreshAuth, refreshDownloads, useAuthStore, useDownloadStore } from "../lib/stores";
 import { checkForUpdates, restartToUpdate, useUpdateStore } from "../lib/updater";
 
@@ -26,6 +27,61 @@ export function SettingsPage() {
 
 function AccountSection({ username }: { username?: string | null }) {
   const datadomeSet = useAuthStore((s) => s.status?.datadome_set ?? false);
+  const waiting = useLoginStore((s) => s.waiting);
+
+  return (
+    <section>
+      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
+        Account
+      </h2>
+      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-zinc-300">
+            Logged in as <span className="font-semibold text-zinc-100">{username ?? "…"}</span>
+          </p>
+          <span
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              datadomeSet ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
+            }`}
+            title="Whether likes, reposts and playlist edits are unblocked"
+          >
+            {datadomeSet ? "Writes enabled" : "Writes blocked"}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-zinc-500">
+          If your session expires or likes stop working, refresh it here — a SoundCloud sign-in
+          window opens and closes by itself.
+        </p>
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            onClick={() => void (waiting ? cancelLogin() : startLogin())}
+            className="flex items-center gap-2 rounded-md bg-orange-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-orange-500"
+          >
+            {waiting && <Spinner size={12} />}
+            {waiting ? "Waiting — click to cancel" : "Refresh session"}
+          </button>
+          <button
+            onClick={() => {
+              void api.authClearToken().then(refreshAuth);
+            }}
+            className="text-xs text-red-400 hover:underline"
+          >
+            Disconnect account
+          </button>
+        </div>
+      </div>
+      <details className="mt-3">
+        <summary className="cursor-pointer text-xs text-zinc-500 hover:text-zinc-300">
+          Advanced: set the session cookies manually
+        </summary>
+        <ManualTokenRow />
+        <DatadomeRow configured={datadomeSet} />
+      </details>
+    </section>
+  );
+}
+
+function ManualTokenRow() {
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -48,48 +104,31 @@ function AccountSection({ username }: { username?: string | null }) {
   };
 
   return (
-    <section>
-      <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-zinc-500">
-        Account
-      </h2>
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-        <p className="text-sm text-zinc-300">
-          Logged in as <span className="font-semibold text-zinc-100">{username ?? "…"}</span>
-        </p>
-        <p className="mt-1 text-xs text-zinc-500">
-          If SoundCloud says the token expired, copy a fresh{" "}
-          <span className="font-mono">oauth_token</span> cookie from your browser and paste it
-          here.
-        </p>
-        <div className="mt-3 flex gap-2">
-          <input
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="paste new oauth_token"
-            spellCheck={false}
-            className="flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-orange-500"
-          />
-          <button
-            onClick={() => void updateToken()}
-            disabled={busy || token.trim().length < 10}
-            className="flex items-center gap-2 rounded-md bg-orange-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-orange-500 disabled:opacity-40"
-          >
-            {busy && <Spinner size={12} />}
-            Update
-          </button>
-        </div>
-        {message && <p className="mt-2 text-xs text-zinc-400">{message}</p>}
+    <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
+      <span className="text-sm font-medium text-zinc-200">OAuth token</span>
+      <p className="mt-1 text-xs text-zinc-500">
+        Copy the <span className="font-mono">oauth_token</span> cookie from your browser (DevTools
+        → Application → Cookies → soundcloud.com) and paste it here.
+      </p>
+      <div className="mt-3 flex gap-2">
+        <input
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          placeholder="paste new oauth_token"
+          spellCheck={false}
+          className="flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-orange-500"
+        />
         <button
-          onClick={() => {
-            void api.authClearToken().then(refreshAuth);
-          }}
-          className="mt-4 text-xs text-red-400 hover:underline"
+          onClick={() => void updateToken()}
+          disabled={busy || token.trim().length < 10}
+          className="flex items-center gap-2 rounded-md bg-white/10 px-4 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/15 disabled:opacity-40"
         >
-          Disconnect account
+          {busy && <Spinner size={12} />}
+          Update
         </button>
       </div>
-      <DatadomeRow configured={datadomeSet} />
-    </section>
+      {message && <p className="mt-2 text-xs text-zinc-400">{message}</p>}
+    </div>
   );
 }
 

@@ -1,20 +1,30 @@
 import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { usePlaylist, useTracksByIds } from "../api/queries";
-import type { Track } from "../api/types";
-import { IconPlay, Spinner } from "../components/Icons";
+import {
+  IconHeart,
+  IconHeartFilled,
+  IconPlay,
+  IconRepost,
+  Spinner,
+} from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
-import { artwork, fmtDurationMs } from "../lib/format";
+import { artwork, fmtDurationMs, isStub } from "../lib/format";
+import {
+  toggleLikePlaylist,
+  toggleRepostPlaylist,
+  useAuthStore,
+  useSocialStore,
+} from "../lib/stores";
 import { playContext } from "../player/queueStore";
-
-function isStub(t: Track): boolean {
-  return t.title == null && t.media == null;
-}
 
 export function PlaylistDetailPage() {
   const { id } = useParams();
   const playlistId = Number(id);
   const { data: playlist, isLoading, error } = usePlaylist(playlistId);
+  const me = useAuthStore((s) => s.status?.me);
+  const liked = useSocialStore((s) => s.likedPlaylists.has(playlistId));
+  const reposted = useSocialStore((s) => s.repostedPlaylists.has(playlistId));
 
   // Tracks beyond the first ~5 arrive as {id} stubs; hydrate them in bulk.
   const stubIds = useMemo(
@@ -70,13 +80,43 @@ export function PlaylistDetailPage() {
               {fmtDurationMs(playlist.duration)}
               {stillHydrating && <span className="ml-2 text-zinc-500">loading tracks…</span>}
             </div>
-            <button
-              onClick={() => playContext(tracks, 0)}
-              disabled={tracks.length === 0}
-              className="mt-3 flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-40"
-            >
-              <IconPlay size={16} /> Play all
-            </button>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                onClick={() => playContext(tracks, 0)}
+                disabled={tracks.length === 0}
+                className="flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-40"
+              >
+                <IconPlay size={16} /> Play all
+              </button>
+              {playlist.user && me && playlist.user.id !== me.id && (
+                <>
+                  <button
+                    onClick={() => void toggleLikePlaylist(playlistId)}
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${
+                      liked
+                        ? "border-orange-500/40 text-orange-500"
+                        : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                    }`}
+                    title={liked ? "Unlike" : "Like"}
+                  >
+                    {liked ? <IconHeartFilled size={14} /> : <IconHeart size={14} />}
+                    {liked ? "Liked" : "Like"}
+                  </button>
+                  <button
+                    onClick={() => void toggleRepostPlaylist(playlistId)}
+                    className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${
+                      reposted
+                        ? "border-orange-500/40 text-orange-500"
+                        : "border-zinc-700 text-zinc-300 hover:border-zinc-500"
+                    }`}
+                    title={reposted ? "Remove repost" : "Repost"}
+                  >
+                    <IconRepost size={14} />
+                    {reposted ? "Reposted" : "Repost"}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       }
