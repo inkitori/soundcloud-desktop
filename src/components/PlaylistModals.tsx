@@ -17,6 +17,10 @@ import { Modal, ModalButton } from "./Modal";
 
 function invalidatePlaylists(playlistId?: number) {
   void queryClient.invalidateQueries({ queryKey: ["my-playlists"] });
+  const me = useAuthStore.getState().status?.me?.id;
+  if (me != null) {
+    void queryClient.invalidateQueries({ queryKey: ["user-playlists", me] });
+  }
   if (playlistId != null) {
     void queryClient.invalidateQueries({ queryKey: ["playlist", playlistId] });
   }

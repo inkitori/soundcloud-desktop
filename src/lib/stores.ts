@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api } from "../api/commands";
 import type { AppError, AuthStatus, CachedRow } from "../api/types";
 import { openAuthModal } from "./modals";
+import { queryClient } from "./queryClient";
 import { showToast } from "./toast";
 
 // ---- auth ----
@@ -21,6 +22,10 @@ export const useAuthStore = create<AuthState>(() => ({
 export async function refreshAuth() {
   try {
     const status = await api.authStatus();
+    const prev = useAuthStore.getState().status;
+    if (prev && (prev.me?.id ?? null) !== (status.me?.id ?? null)) {
+      resetAccountState(status.logged_in);
+    }
     useAuthStore.setState({ status, loading: false, expired: false });
   } catch (e) {
     console.error("auth_status failed", e);
@@ -29,6 +34,42 @@ export async function refreshAuth() {
       loading: false,
     });
   }
+}
+
+/**
+ * Drop everything keyed to the previous account when the signed-in user
+ * changes (disconnect, or connecting a different account): the query cache,
+ * the optimistic id mirrors, and the once-per-session ids guard.
+ */
+function resetAccountState(loggedIn: boolean) {
+  queryClient.clear();
+  socialIdsLoaded = false;
+  useLikedStore.setState({ ids: new Set() });
+  useSocialStore.setState({
+    repostedTracks: new Set(),
+    repostedPlaylists: new Set(),
+    likedPlaylists: new Set(),
+    followedUsers: new Set(),
+  });
+  if (loggedIn) void loadSocialIds();
+}
+
+/**
+ * Mark queries whose server data a write changed as stale without refetching
+ * in place: lists you're looking at shouldn't reshuffle under the toggle, and
+ * SoundCloud's indexes can lag a write by a moment, so refetching on the next
+ * mount (e.g. navigating to the profile) is both calmer and more reliable.
+ * Keys containing undefined (no signed-in user id) are skipped.
+ */
+function staleAfterWrite(...keys: unknown[][]) {
+  for (const key of keys) {
+    if (key.includes(undefined)) continue;
+    void queryClient.invalidateQueries({ queryKey: key, refetchType: "none" });
+  }
+}
+
+function myId(): number | undefined {
+  return useAuthStore.getState().status?.me?.id;
 }
 
 // ---- likes (local mirror for instant heart toggles) ----
@@ -93,13 +134,14 @@ async function toggleInSet(
 }
 
 export async function toggleLikeTrack(trackId: number) {
-  await toggleInSet(
+  const ok = await toggleInSet(
     () => useLikedStore.getState().ids,
     (ids) => useLikedStore.setState({ ids }),
     trackId,
     (on) => (on ? api.likeTrack(trackId) : api.unlikeTrack(trackId)),
     "like",
   );
+  if (ok) staleAfterWrite(["my-likes"], ["user-likes", myId()]);
 }
 
 // ---- reposts / follows / playlist likes (same optimistic-set pattern) ----
@@ -151,7 +193,9 @@ export async function toggleRepostTrack(trackId: number) {
     (on) => (on ? api.repostTrack(trackId) : api.unrepostTrack(trackId)),
     "repost",
   );
-  if (ok && useSocialStore.getState().repostedTracks.has(trackId)) {
+  if (!ok) return;
+  staleAfterWrite(["user-reposts", myId()], ["feed"]);
+  if (useSocialStore.getState().repostedTracks.has(trackId)) {
     showToast("Reposted to your followers");
   }
 }
@@ -164,19 +208,23 @@ export async function toggleRepostPlaylist(playlistId: number) {
     (on) => (on ? api.repostPlaylist(playlistId) : api.unrepostPlaylist(playlistId)),
     "repost",
   );
-  if (ok && useSocialStore.getState().repostedPlaylists.has(playlistId)) {
+  if (!ok) return;
+  staleAfterWrite(["user-reposts", myId()], ["feed"]);
+  if (useSocialStore.getState().repostedPlaylists.has(playlistId)) {
     showToast("Reposted to your followers");
   }
 }
 
 export async function toggleLikePlaylist(playlistId: number) {
-  await toggleInSet(
+  const ok = await toggleInSet(
     () => useSocialStore.getState().likedPlaylists,
     (likedPlaylists) => useSocialStore.setState({ likedPlaylists }),
     playlistId,
     (on) => (on ? api.likePlaylist(playlistId) : api.unlikePlaylist(playlistId)),
     "like",
   );
+  // The library list ("my-playlists") mixes in liked playlists.
+  if (ok) staleAfterWrite(["my-playlists"]);
 }
 
 export async function toggleFollowUser(userId: number, username?: string | null) {
@@ -187,7 +235,15 @@ export async function toggleFollowUser(userId: number, username?: string | null)
     (on) => (on ? api.followUser(userId) : api.unfollowUser(userId)),
     "follow",
   );
-  if (ok && useSocialStore.getState().followedUsers.has(userId)) {
+  if (!ok) return;
+  staleAfterWrite(
+    ["user-followings", myId()],
+    ["user-followers", userId],
+    ["user", myId()],
+    ["user", userId],
+    ["feed"],
+  );
+  if (useSocialStore.getState().followedUsers.has(userId)) {
     showToast(`Following ${username ?? "user"}`);
   }
 }
