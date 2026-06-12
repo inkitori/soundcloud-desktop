@@ -48,6 +48,8 @@ jobs:
             Or grab the `.dmg` below (unsigned — run
             `xattr -cr "/Applications/SoundCloud Desktop.app"` after copying it in).
             Existing installs update themselves automatically.
+          releaseDraft: false
+          prerelease: false
           includeUpdaterJson: true
           args: --target universal-apple-darwin
 
