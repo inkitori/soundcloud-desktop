@@ -66,12 +66,21 @@ Requirements: Rust, Node + pnpm.
 ### Releasing
 
 Releases are built and published by CI (`.github/workflows/release.yml`) on a
-tag push:
+tag push. The usual release path is:
 
 ```sh
-scripts/release.sh 0.2.0     # bumps package.json / tauri.conf.json / Cargo.toml+lock, commits, tags
-git push origin main v0.2.0
+pnpm release          # patch release, e.g. 0.2.1 -> 0.2.2
+pnpm release minor    # minor release, e.g. 0.2.1 -> 0.3.0
+pnpm release 0.3.0    # explicit version
 ```
+
+`scripts/publish.sh` checks that `main` is clean, fetches `origin/main` and
+tags, runs `pnpm build`, bumps all version files, commits, tags, pushes
+`main` plus the tag, then watches the GitHub Actions release run when `gh` is
+installed. Use `scripts/publish.sh --dry-run` to preview the next version.
+
+For a local-only bump/tag without pushing, use `scripts/publish.sh --no-push`
+or the lower-level `scripts/release.sh 0.3.0`.
 
 CI builds a universal (Intel + Apple Silicon) macOS app, signs the updater
 artifacts, publishes a GitHub Release with the `.dmg` + `latest.json` update

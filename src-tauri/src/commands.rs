@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use futures::future::join_all;
 use tauri::{AppHandle, State};
 
 use crate::error::{AppError, Result};
@@ -69,9 +70,9 @@ pub async fn auth_set_token(sc: Sc<'_>, token: String) -> Result<User> {
         Err(e) => {
             sc.set_token(prev).await;
             Err(match e {
-                AppError::TokenExpired => {
-                    AppError::Other("token was rejected by SoundCloud — re-copy it from your browser".into())
-                }
+                AppError::TokenExpired => AppError::Other(
+                    "token was rejected by SoundCloud — re-copy it from your browser".into(),
+                ),
                 other => other,
             })
         }
@@ -125,8 +126,9 @@ pub async fn get_track(sc: Sc<'_>, id: u64) -> Result<Track> {
 #[tauri::command]
 pub async fn get_tracks_by_ids(sc: Sc<'_>, ids: Vec<u64>) -> Result<Vec<Track>> {
     let mut out = Vec::with_capacity(ids.len());
-    for chunk in ids.chunks(50) {
-        out.extend(sc.ep_tracks_by_ids(chunk).await?);
+    let chunks = ids.chunks(50).map(|chunk| sc.ep_tracks_by_ids(chunk));
+    for result in join_all(chunks).await {
+        out.extend(result?);
     }
     Ok(out)
 }
@@ -137,7 +139,11 @@ pub async fn get_user(sc: Sc<'_>, id: u64) -> Result<User> {
 }
 
 #[tauri::command]
-pub async fn get_user_tracks(sc: Sc<'_>, id: u64, next_href: Option<String>) -> Result<Page<Track>> {
+pub async fn get_user_tracks(
+    sc: Sc<'_>,
+    id: u64,
+    next_href: Option<String>,
+) -> Result<Page<Track>> {
     sc.ep_user_tracks(id, next_href).await
 }
 
@@ -208,12 +214,20 @@ pub async fn get_user_followings(
 /// empty on failure so one flaky endpoint doesn't blank the others.
 #[tauri::command]
 pub async fn get_social_ids(sc: Sc<'_>) -> Result<SocialIds> {
+    let (liked_tracks, liked_playlists, reposted_tracks, reposted_playlists, followed_users) = futures::join!(
+        sc.ep_my_ids("track_likes"),
+        sc.ep_my_ids("playlist_likes"),
+        sc.ep_my_ids("track_reposts"),
+        sc.ep_my_ids("playlist_reposts"),
+        sc.ep_my_following_ids(),
+    );
+
     Ok(SocialIds {
-        liked_tracks: sc.ep_my_ids("track_likes").await.unwrap_or_default(),
-        liked_playlists: sc.ep_my_ids("playlist_likes").await.unwrap_or_default(),
-        reposted_tracks: sc.ep_my_ids("track_reposts").await.unwrap_or_default(),
-        reposted_playlists: sc.ep_my_ids("playlist_reposts").await.unwrap_or_default(),
-        followed_users: sc.ep_my_following_ids().await.unwrap_or_default(),
+        liked_tracks: liked_tracks.unwrap_or_default(),
+        liked_playlists: liked_playlists.unwrap_or_default(),
+        reposted_tracks: reposted_tracks.unwrap_or_default(),
+        reposted_playlists: reposted_playlists.unwrap_or_default(),
+        followed_users: followed_users.unwrap_or_default(),
     })
 }
 
@@ -227,7 +241,11 @@ pub async fn get_related_tracks(
 }
 
 #[tauri::command]
-pub async fn search_tracks(sc: Sc<'_>, q: String, next_href: Option<String>) -> Result<Page<Track>> {
+pub async fn search_tracks(
+    sc: Sc<'_>,
+    q: String,
+    next_href: Option<String>,
+) -> Result<Page<Track>> {
     sc.ep_search_tracks(&q, next_href).await
 }
 

@@ -63,24 +63,24 @@ export function useUser(id: number) {
   });
 }
 
-export function useUserTracks(id: number) {
-  return useInfinite(["user-tracks", id], (next) => api.getUserTracks(id, next));
+export function useUserTracks(id: number, enabled = true) {
+  return useInfinite(["user-tracks", id], (next) => api.getUserTracks(id, next), enabled);
 }
 
-export function useUserToptracks(id: number) {
-  return useInfinite(["user-toptracks", id], (next) => api.getUserToptracks(id, next));
+export function useUserToptracks(id: number, enabled = true) {
+  return useInfinite(["user-toptracks", id], (next) => api.getUserToptracks(id, next), enabled);
 }
 
 export function useUserLikes(id: number) {
   return useInfinite(["user-likes", id], (next) => api.getUserLikes(id, next));
 }
 
-export function useUserPlaylists(id: number) {
-  return useInfinite(["user-playlists", id], (next) => api.getUserPlaylists(id, next));
+export function useUserPlaylists(id: number, enabled = true) {
+  return useInfinite(["user-playlists", id], (next) => api.getUserPlaylists(id, next), enabled);
 }
 
-export function useUserAlbums(id: number) {
-  return useInfinite(["user-albums", id], (next) => api.getUserAlbums(id, next));
+export function useUserAlbums(id: number, enabled = true) {
+  return useInfinite(["user-albums", id], (next) => api.getUserAlbums(id, next), enabled);
 }
 
 export function useUserReposts(id: number) {

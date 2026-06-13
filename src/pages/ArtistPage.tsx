@@ -138,8 +138,8 @@ export function ArtistPage() {
 }
 
 function UserTrackTab({ userId, kind }: { userId: number; kind: "popular" | "tracks" }) {
-  const top = useUserToptracks(userId);
-  const all = useUserTracks(userId);
+  const top = useUserToptracks(userId, kind === "popular");
+  const all = useUserTracks(userId, kind === "tracks");
   const q = kind === "popular" ? top : all;
   const tracks = useMemo(() => q.data?.pages.flatMap((p) => p.collection) ?? [], [q.data]);
   if (q.isLoading) return <Loading />;
@@ -252,8 +252,8 @@ function UserListTab({ userId, kind }: { userId: number; kind: "followers" | "fo
 }
 
 function UserPlaylistsTab({ userId, kind }: { userId: number; kind: "albums" | "playlists" }) {
-  const albums = useUserAlbums(userId);
-  const playlists = useUserPlaylists(userId);
+  const albums = useUserAlbums(userId, kind === "albums");
+  const playlists = useUserPlaylists(userId, kind === "playlists");
   const q = kind === "albums" ? albums : playlists;
   const items = useMemo(() => q.data?.pages.flatMap((p) => p.collection) ?? [], [q.data]);
   if (q.isLoading) return <Loading />;

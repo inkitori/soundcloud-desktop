@@ -30,7 +30,10 @@ pub enum DiscordUpdate {
         duration_s: f64,
         permalink_url: Option<String>,
     },
-    Playback { playing: bool, position_s: f64 },
+    Playback {
+        playing: bool,
+        position_s: f64,
+    },
     Enabled(bool),
 }
 
@@ -139,7 +142,10 @@ impl Presence {
                 // update (the audio element's play event) with the position.
                 self.dirty = true;
             }
-            DiscordUpdate::Playback { playing, position_s } => {
+            DiscordUpdate::Playback {
+                playing,
+                position_s,
+            } => {
                 let predicted = self.predicted_position();
                 let was_playing = self.playing;
                 self.playing = playing;
@@ -259,6 +265,7 @@ impl Presence {
         };
         let details = clamp_text(&meta.title);
         let state = clamp_text(&meta.artist);
+        let activity_name = clamp_text(&meta.artist);
 
         let now_ms = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -272,11 +279,16 @@ impl Presence {
 
         let mut activity = Activity::new()
             .activity_type(ActivityType::Listening)
+            .name(activity_name.as_str())
             .details(details.as_str())
             .state(state.as_str())
             .timestamps(timestamps);
         if let Some(url) = meta.artwork_url.as_deref() {
-            activity = activity.assets(Assets::new().large_image(url).large_text(details.as_str()));
+            activity = activity.assets(
+                Assets::new()
+                    .large_image(url)
+                    .large_text(activity_name.as_str()),
+            );
         }
         if let Some(url) = meta.permalink_url.as_deref() {
             activity = activity.buttons(vec![Button::new("Listen on SoundCloud", url)]);
@@ -308,7 +320,9 @@ fn remove_stale_sockets() {
     use std::io::ErrorKind;
     use std::os::unix::net::UnixStream;
     for key in ["XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"] {
-        let Ok(base) = std::env::var(key) else { continue };
+        let Ok(base) = std::env::var(key) else {
+            continue;
+        };
         for i in 0..10 {
             let path = std::path::Path::new(&base).join(format!("discord-ipc-{i}"));
             if !path.exists() {
