@@ -110,7 +110,7 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
 
       <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <button
-          onClick={() => void toggleLikeTrack(track.id)}
+          onClick={() => void toggleLikeTrack(track)}
           className={`rounded p-1.5 hover:bg-white/10 ${liked ? "text-orange-500 opacity-100" : "text-zinc-400"}`}
           title={liked ? "Unlike" : "Like"}
         >

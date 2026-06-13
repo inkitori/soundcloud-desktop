@@ -8,7 +8,7 @@ use tauri::{AppHandle, Emitter};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::{Mutex, RwLock};
 
-use super::{auth, client_id};
+use super::{client_id, webwrite};
 use crate::error::{AppError, Result};
 
 pub const API_BASE: &str = "https://api-v2.soundcloud.com";
@@ -48,12 +48,18 @@ impl ScClient {
         };
         let persisted_cid = read_str("client_id");
         let persisted_datadome = read_str("datadome");
+        // The token lives in the app store rather than the macOS Keychain:
+        // unsigned/ad-hoc builds change identity on every update, so Keychain
+        // ACLs would re-prompt every user after each release.
+        let persisted_token = read_str("oauth_token")
+            .map(|t| t.trim().to_owned())
+            .filter(|t| !t.is_empty());
 
         Arc::new(Self {
             http,
             app,
             client_id: RwLock::new(persisted_cid),
-            token: RwLock::new(auth::get_token()),
+            token: RwLock::new(persisted_token),
             me_id: RwLock::new(None),
             last_request: Mutex::new(None),
             datadome: RwLock::new(persisted_datadome),
@@ -122,7 +128,18 @@ impl ScClient {
     }
 
     pub async fn set_token(&self, token: Option<String>) {
-        *self.token.write().await = token;
+        let value = token
+            .map(|t| t.trim().to_owned())
+            .filter(|t| !t.is_empty());
+        if let Ok(store) = self.app.store(STORE_FILE) {
+            match &value {
+                Some(t) => store.set("oauth_token", serde_json::json!(t)),
+                None => {
+                    store.delete("oauth_token");
+                }
+            }
+        }
+        *self.token.write().await = value;
         *self.me_id.write().await = None;
     }
 
@@ -300,6 +317,46 @@ impl ScClient {
                 }
                 StatusCode::NOT_FOUND => return Err(AppError::NotFound),
                 s => return Err(AppError::Other(format!("HTTP {s} for {full}"))),
+            }
+        }
+    }
+
+    /// Write request routed through the hidden soundcloud.com webview, where
+    /// DataDome sees a real browser (see `sc::webwrite`). Falls back to the
+    /// direct HTTP path when the webview machinery is unavailable.
+    pub async fn write_request(&self, method: Method, path: &str, body: Option<Value>) -> Result<()> {
+        self.write_inner(method, path, body, false).await.map(|_| ())
+    }
+
+    /// Same, returning the `id` field of the JSON response (playlist creation).
+    pub async fn write_request_id(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+    ) -> Result<u64> {
+        match self.write_inner(method, path, body, true).await? {
+            Some(id) => Ok(id),
+            None => Err(AppError::Other("SoundCloud did not return an id".into())),
+        }
+    }
+
+    async fn write_inner(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+        want_id: bool,
+    ) -> Result<Option<u64>> {
+        let cid = self.ensure_client_id().await?;
+        let token = self.token().await;
+        match webwrite::run(&self.app, &token, &cid, &method, path, body.as_ref(), want_id).await {
+            Ok(id) => Ok(id),
+            Err(webwrite::WebWriteError::Api(e)) => Err(e),
+            Err(webwrite::WebWriteError::Unavailable(msg)) => {
+                tracing::warn!("webview write unavailable ({msg}); using direct request");
+                let v = self.request_value(method, path, &[], body).await?;
+                Ok(v.get("id").and_then(Value::as_u64))
             }
         }
     }

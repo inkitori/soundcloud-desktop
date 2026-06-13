@@ -12,7 +12,7 @@ pub enum AppError {
     RateLimited { retry_after_secs: u64 },
     #[error("not found")]
     NotFound,
-    #[error("SoundCloud's bot protection (DataDome) blocked this request — paste a fresh datadome cookie in Settings")]
+    #[error("SoundCloud's bot protection (DataDome) blocked this request — try again to get a verification check")]
     BotChallenge,
     #[error("no playable stream for track {0}")]
     NoPlayableStream(u64),

@@ -33,6 +33,17 @@ pub fn run() {
             app.manage(media::discord::spawn());
             Ok(())
         })
+        .on_window_event(|window, event| {
+            // The hidden write webview (and a stray login window) must not
+            // keep the app alive after the main window closes.
+            if window.label() == "main" && matches!(event, tauri::WindowEvent::Destroyed) {
+                for label in [sc::login::LOGIN_WINDOW, sc::webwrite::WRITE_WINDOW] {
+                    if let Some(w) = window.app_handle().get_webview_window(label) {
+                        let _ = w.close();
+                    }
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             commands::auth_status,
             commands::auth_set_token,

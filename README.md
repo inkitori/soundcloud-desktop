@@ -87,7 +87,7 @@ deploy key with write access to the tap repo).
 
 Click **Sign in with SoundCloud** on first run: a SoundCloud sign-in window
 opens, you log in like normal, and it closes by itself once the app has
-captured the session (stored in the macOS Keychain). The same window also
+captured the session (stored in the app's local data folder). The same window also
 yields a DataDome clearance cookie, which is what unblocks likes, reposts and
 playlist edits.
 

@@ -22,7 +22,7 @@ export function AuthModals() {
         }
       : {
           title: "Action blocked by SoundCloud",
-          body: "SoundCloud's bot protection wants a fresh browser session before it allows likes, reposts or playlist changes from the app. Signing in again refreshes it — usually it takes just a few seconds.",
+          body: "SoundCloud's bot protection challenged this action. Try it again — if SoundCloud asks for a verification check, the app opens it in a window so you can complete it. If it keeps failing, refreshing the session below can help.",
           action: "Refresh Session",
         };
 

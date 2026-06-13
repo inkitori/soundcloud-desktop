@@ -48,7 +48,7 @@ export function TokenGate() {
         )}
 
         <p className="mt-3 text-center text-xs text-zinc-600">
-          Your session is stored in the macOS Keychain, nowhere else.
+          Your session is stored locally in the app's data folder, nowhere else.
         </p>
 
         <details className="mt-5 border-t border-zinc-800 pt-4">

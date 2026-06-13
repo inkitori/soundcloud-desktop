@@ -20,29 +20,66 @@ impl ScClient {
         next: Option<String>,
         limit: u32,
     ) -> Result<Page<T>> {
+        self.page_inner(path, next, limit, false).await
+    }
+
+    /// For lists behind a manual "Load more" button: also merge short pages,
+    /// so the dangling next_href api-v2 returns on the final page is resolved
+    /// up front and the button never points at nothing.
+    async fn page_filled<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        next: Option<String>,
+        limit: u32,
+    ) -> Result<Page<T>> {
+        self.page_inner(path, next, limit, true).await
+    }
+
+    /// api-v2 slices a page by cursor and then filters it server-side, so
+    /// short and even empty pages occur mid-chain — and the final page still
+    /// carries a next_href whose fetch returns nothing. Chase a few pages
+    /// (all of them if `fill`, only empty ones otherwise) so callers never
+    /// see an "empty but more available" page.
+    async fn page_inner<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        next: Option<String>,
+        limit: u32,
+        fill: bool,
+    ) -> Result<Page<T>> {
         let mut v = match next {
             Some(href) => self.get_value(&href, &[]).await?,
             None => self.get_value(path, &lp(limit)).await?,
         };
-        // api-v2 slices a page by cursor and then filters it server-side, so a
-        // page can come back empty yet still carry a next_href — including past
-        // the true end of the list. Chase a few so callers never see an
-        // "empty but more available" page.
-        for _ in 0..3 {
-            let has_items = v
-                .get("collection")
-                .and_then(Value::as_array)
-                .map_or(false, |a| !a.is_empty());
-            if has_items {
+        let mut items: Vec<Value> = Vec::new();
+        let mut next_href: Option<String>;
+        let mut hops = 0;
+        loop {
+            if let Some(arr) = v.get("collection").and_then(Value::as_array) {
+                items.extend(arr.iter().cloned());
+            }
+            next_href = v
+                .get("next_href")
+                .and_then(Value::as_str)
+                .map(str::to_owned);
+            let enough = if fill {
+                items.len() >= limit as usize
+            } else {
+                !items.is_empty()
+            };
+            if enough || hops >= 3 {
                 break;
             }
-            let Some(href) = v.get("next_href").and_then(Value::as_str).map(str::to_owned)
-            else {
+            let Some(href) = next_href.clone() else {
                 break;
             };
             v = self.get_value(&href, &[]).await?;
+            hops += 1;
         }
-        Ok(parse_page(v))
+        Ok(Page {
+            collection: parse_items(&items),
+            next_href,
+        })
     }
 
     pub async fn ep_me(&self) -> Result<User> {
@@ -139,27 +176,29 @@ impl ScClient {
     }
 
     pub async fn ep_user_playlists(&self, id: u64, next: Option<String>) -> Result<Page<Playlist>> {
-        self.page(&format!("/users/{id}/playlists_without_albums"), next, 24)
+        self.page_filled(&format!("/users/{id}/playlists_without_albums"), next, 24)
             .await
     }
 
     pub async fn ep_user_albums(&self, id: u64, next: Option<String>) -> Result<Page<Playlist>> {
-        self.page(&format!("/users/{id}/albums"), next, 24).await
+        self.page_filled(&format!("/users/{id}/albums"), next, 24).await
     }
 
     /// A user's reposts (the profile "Reposts" tab). Same item shape as the
     /// home feed: track-repost / playlist-repost entries.
     pub async fn ep_user_reposts(&self, id: u64, next: Option<String>) -> Result<Page<FeedItem>> {
-        self.page(&format!("/stream/users/{id}/reposts"), next, 24)
+        self.page_filled(&format!("/stream/users/{id}/reposts"), next, 24)
             .await
     }
 
     pub async fn ep_user_followers(&self, id: u64, next: Option<String>) -> Result<Page<User>> {
-        self.page(&format!("/users/{id}/followers"), next, 24).await
+        self.page_filled(&format!("/users/{id}/followers"), next, 24)
+            .await
     }
 
     pub async fn ep_user_followings(&self, id: u64, next: Option<String>) -> Result<Page<User>> {
-        self.page(&format!("/users/{id}/followings"), next, 24).await
+        self.page_filled(&format!("/users/{id}/followings"), next, 24)
+            .await
     }
 
     /// One of the id-set endpoints the web app preloads to light up
@@ -274,41 +313,31 @@ impl ScClient {
     pub async fn ep_set_track_like(&self, track_id: u64, liked: bool) -> Result<()> {
         let me = self.me_id().await?;
         let method = if liked { Method::PUT } else { Method::DELETE };
-        self.request_value(
-            method,
-            &format!("/users/{me}/track_likes/{track_id}"),
-            &[],
-            None,
-        )
-        .await?;
-        Ok(())
+        self.write_request(method, &format!("/users/{me}/track_likes/{track_id}"), None)
+            .await
     }
 
     pub async fn ep_set_playlist_like(&self, playlist_id: u64, liked: bool) -> Result<()> {
         let me = self.me_id().await?;
         let method = if liked { Method::PUT } else { Method::DELETE };
-        self.request_value(
+        self.write_request(
             method,
             &format!("/users/{me}/playlist_likes/{playlist_id}"),
-            &[],
             None,
         )
-        .await?;
-        Ok(())
+        .await
     }
 
     /// Playlist edits replace the full track-id list (the web app's shape:
     /// PUT /playlists/{id} {"playlist":{"tracks":[ids...]}}). If writes fail,
     /// re-verify the body shape against DevTools on soundcloud.com.
     pub async fn ep_playlist_set_tracks(&self, playlist_id: u64, track_ids: Vec<u64>) -> Result<()> {
-        self.request_value(
+        self.write_request(
             Method::PUT,
             &format!("/playlists/{playlist_id}"),
-            &[],
             Some(json!({ "playlist": { "tracks": track_ids } })),
         )
-        .await?;
-        Ok(())
+        .await
     }
 
     pub async fn ep_playlist_add_track(&self, playlist_id: u64, track_id: u64) -> Result<()> {
@@ -342,11 +371,10 @@ impl ScClient {
         public: bool,
         track_ids: Vec<u64>,
     ) -> Result<Playlist> {
-        let v = self
-            .request_value(
+        let id = self
+            .write_request_id(
                 Method::POST,
                 "/playlists",
-                &[],
                 Some(json!({
                     "playlist": {
                         "title": title,
@@ -356,34 +384,25 @@ impl ScClient {
                 })),
             )
             .await?;
-        serde_path_to_error::deserialize(v)
-            .map_err(|e| AppError::Other(format!("playlist decode at `{}`: {e}", e.path())))
+        self.ep_playlist(id).await
     }
 
     pub async fn ep_set_track_repost(&self, track_id: u64, on: bool) -> Result<()> {
         let method = if on { Method::PUT } else { Method::DELETE };
-        self.request_value(method, &format!("/me/track_reposts/{track_id}"), &[], None)
-            .await?;
-        Ok(())
+        self.write_request(method, &format!("/me/track_reposts/{track_id}"), None)
+            .await
     }
 
     pub async fn ep_set_playlist_repost(&self, playlist_id: u64, on: bool) -> Result<()> {
         let method = if on { Method::PUT } else { Method::DELETE };
-        self.request_value(
-            method,
-            &format!("/me/playlist_reposts/{playlist_id}"),
-            &[],
-            None,
-        )
-        .await?;
-        Ok(())
+        self.write_request(method, &format!("/me/playlist_reposts/{playlist_id}"), None)
+            .await
     }
 
     /// Follow/unfollow (web app shape: POST/DELETE /me/followings/{id}).
     pub async fn ep_set_follow(&self, user_id: u64, on: bool) -> Result<()> {
         let method = if on { Method::POST } else { Method::DELETE };
-        self.request_value(method, &format!("/me/followings/{user_id}"), &[], None)
-            .await?;
-        Ok(())
+        self.write_request(method, &format!("/me/followings/{user_id}"), None)
+            .await
     }
 }

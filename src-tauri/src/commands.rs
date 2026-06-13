@@ -11,7 +11,6 @@ use crate::media::resolver::{self, PlaybackSource};
 use crate::sc::client::ScClient;
 use crate::sc::models::*;
 use crate::sc::pagination::Page;
-use crate::sc::auth;
 
 type Sc<'a> = State<'a, Arc<ScClient>>;
 type Cache<'a> = State<'a, Arc<CacheDb>>;
@@ -60,15 +59,15 @@ pub async fn auth_set_datadome(sc: Sc<'_>, cookie: String) -> Result<()> {
 
 #[tauri::command]
 pub async fn auth_set_token(sc: Sc<'_>, token: String) -> Result<User> {
-    sc.set_token(Some(token.trim().to_string())).await;
+    let prev = sc.token().await;
+    sc.set_token(Some(token)).await;
     match sc.ep_me().await {
         Ok(me) => {
-            auth::set_token(&token)?;
             sc.set_me(me.id).await;
             Ok(me)
         }
         Err(e) => {
-            sc.set_token(auth::get_token()).await;
+            sc.set_token(prev).await;
             Err(match e {
                 AppError::TokenExpired => {
                     AppError::Other("token was rejected by SoundCloud — re-copy it from your browser".into())
@@ -81,7 +80,6 @@ pub async fn auth_set_token(sc: Sc<'_>, token: String) -> Result<User> {
 
 #[tauri::command]
 pub async fn auth_clear_token(sc: Sc<'_>) -> Result<()> {
-    auth::clear_token()?;
     sc.set_token(None).await;
     Ok(())
 }

@@ -10,7 +10,6 @@ use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
-use super::auth;
 use super::client::ScClient;
 use crate::error::{AppError, Result};
 
@@ -88,12 +87,10 @@ async fn poll_for_token(app: AppHandle, sc: Arc<ScClient>) {
             sc.set_datadome(Some(dd)).await;
         }
 
-        sc.set_token(Some(token.clone())).await;
+        let prev = sc.token().await;
+        sc.set_token(Some(token)).await;
         match sc.ep_me().await {
             Ok(me) => {
-                if let Err(e) = auth::set_token(&token) {
-                    tracing::warn!("keychain save failed: {e}");
-                }
                 sc.set_me(me.id).await;
                 POLL_ACTIVE.store(false, Ordering::SeqCst);
                 let _ = window.close();
@@ -104,7 +101,7 @@ async fn poll_for_token(app: AppHandle, sc: Arc<ScClient>) {
                 // Cookie present but not (yet) accepted — likely mid-redirect.
                 // Restore the previous token and keep waiting.
                 tracing::debug!("token probe failed, still waiting: {e}");
-                sc.set_token(auth::get_token()).await;
+                sc.set_token(prev).await;
             }
         }
     }

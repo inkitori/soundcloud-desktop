@@ -1,8 +1,8 @@
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import { useMyLikes } from "../api/queries";
 import { Spinner } from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
-import { sessionUnliked } from "../lib/stores";
+import { useSessionLikes } from "../lib/sessionLikes";
 
 export function LikesPage() {
   const {
@@ -15,16 +15,11 @@ export function LikesPage() {
     error,
   } = useMyLikes();
 
-  // Hide tracks unliked before this mount: the server can lag the unlike, but
-  // a row unliked while on the page stays so the toggle can be undone.
-  const hidden = useRef(new Set(sessionUnliked)).current;
-  const tracks = useMemo(
-    () =>
-      (
-        data?.pages.flatMap((p) => p.collection.flatMap((i) => (i.track ? [i.track] : []))) ?? []
-      ).filter((t) => !hidden.has(t.id)),
-    [data, hidden],
+  const serverTracks = useMemo(
+    () => data?.pages.flatMap((p) => p.collection.flatMap((i) => (i.track ? [i.track] : []))) ?? [],
+    [data],
   );
+  const tracks = useSessionLikes(serverTracks);
 
   if (isLoading) {
     return (
