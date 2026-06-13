@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import type { User } from "../api/types";
 import { audioController } from "../player/audioController";
 import { next, prev } from "../player/queueStore";
+import { isUnavailableCode, settleBatchTrack } from "./downloads";
 import { useLoginStore } from "./login";
 import { closeAuthModal, openAuthModal } from "./modals";
 import {
@@ -67,18 +68,28 @@ export function initEvents() {
     setDownloadProgress(event.payload.track_id, event.payload.pct);
   });
 
-  void listen<{ track_id: number }>("download:done", (event) => {
+  void listen<{ track_id: number; bytes: number; evicted: number[] }>("download:done", (event) => {
     setDownloadProgress(event.payload.track_id, null);
+    settleBatchTrack(event.payload.track_id, true);
     void refreshDownloads();
+    const evicted = event.payload.evicted?.length ?? 0;
+    if (evicted > 0) {
+      showToast(`Freed space: removed ${evicted} least-played ${evicted === 1 ? "track" : "tracks"}`);
+    }
   });
 
-  void listen<{ track_id: number; message: string; cancelled: boolean }>(
+  void listen<{ track_id: number; message: string; code?: string; cancelled: boolean }>(
     "download:error",
     (event) => {
       setDownloadProgress(event.payload.track_id, null);
-      if (!event.payload.cancelled) {
-        console.error(`download ${event.payload.track_id} failed: ${event.payload.message}`);
-        showToast(`Download failed: ${event.payload.message}`, "error");
+      // A batch rolls failures into one summary; only lone downloads toast here.
+      const batched = settleBatchTrack(event.payload.track_id, false, event.payload.code);
+      if (event.payload.cancelled) return;
+      console.error(`download ${event.payload.track_id} failed: ${event.payload.message}`);
+      if (!batched) {
+        // Go+/DRM tracks aren't a failure to retry — say so plainly.
+        const prefix = isUnavailableCode(event.payload.code) ? "Can't download" : "Download failed";
+        showToast(`${prefix}: ${event.payload.message}`, "error");
       }
     },
   );

@@ -16,6 +16,8 @@ pub enum AppError {
     BotChallenge,
     #[error("no playable stream for track {0}")]
     NoPlayableStream(u64),
+    #[error("only a 30-second preview is available (Go+ track)")]
+    PreviewOnly,
     #[error("this track is DRM-protected and can't be played outside SoundCloud")]
     DrmProtected,
     #[error("could not obtain a SoundCloud client_id")]
@@ -25,7 +27,7 @@ pub enum AppError {
 }
 
 impl AppError {
-    fn code(&self) -> &'static str {
+    pub fn code(&self) -> &'static str {
         match self {
             AppError::Network(_) => "network",
             AppError::TokenExpired => "token_expired",
@@ -34,6 +36,7 @@ impl AppError {
             AppError::NotFound => "not_found",
             AppError::BotChallenge => "bot_challenge",
             AppError::NoPlayableStream(_) => "no_stream",
+            AppError::PreviewOnly => "preview_only",
             AppError::DrmProtected => "drm",
             AppError::ClientId => "client_id",
             AppError::Other(_) => "other",

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useFeed } from "../api/queries";
 import type { FeedItem, Track } from "../api/types";
-import { IconRadio, Spinner } from "../components/Icons";
+import { IconDownload, IconRadio, Spinner } from "../components/Icons";
 import { PlaylistRow } from "../components/PlaylistRow";
 import { TrackRow } from "../components/TrackRow";
+import { useNetworkStore } from "../lib/stores";
 import { playContext } from "../player/queueStore";
 
 export function FeedPage() {
@@ -17,6 +19,7 @@ export function FeedPage() {
     error,
   } = useFeed();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const online = useNetworkStore((s) => s.online);
 
   // /stream pages can overlap at the boundary, so the same item (same entity
   // posted/reposted by the same actor) shows up twice — keep the first one.
@@ -49,8 +52,15 @@ export function FeedPage() {
     return () => observer.disconnect();
   }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
+  if (!online && !data) return <OfflineNotice />;
   if (isLoading) return <Centered><Spinner size={28} /></Centered>;
-  if (error) return <Centered>Couldn't load your feed: {(error as Error).message}</Centered>;
+  if (error) {
+    return online ? (
+      <Centered>Couldn't load your feed: {(error as Error).message}</Centered>
+    ) : (
+      <OfflineNotice />
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto px-4 pb-4">
@@ -119,5 +129,20 @@ function FeedRow({
 function Centered({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-full items-center justify-center text-sm text-zinc-500">{children}</div>
+  );
+}
+
+function OfflineNotice() {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-zinc-500">
+      <IconDownload size={36} className="text-zinc-600" />
+      <p className="text-sm">You're offline</p>
+      <Link
+        to="/downloads"
+        className="flex items-center gap-2 rounded-full bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-500"
+      >
+        Go to your downloads
+      </Link>
+    </div>
   );
 }

@@ -89,11 +89,14 @@ export const api = {
   // downloads
   downloadTrack: (trackId: number, pin = true) =>
     invoke<void>("download_track", { trackId, pin }),
+  downloadMany: (trackIds: number[], pin = true) =>
+    invoke<void>("download_many", { trackIds, pin }),
   cancelDownload: (trackId: number) => invoke<void>("cancel_download", { trackId }),
   removeDownload: (trackId: number) => invoke<void>("remove_download", { trackId }),
   setPinned: (trackId: number, pinned: boolean) =>
     invoke<void>("set_pinned", { trackId, pinned }),
   listDownloads: () => invoke<CachedRow[]>("list_downloads"),
+  backfillDownloads: () => invoke<number>("backfill_downloads"),
   cacheStats: () => invoke<CacheStats>("cache_stats"),
   setCacheCap: (bytes: number) => invoke<number[]>("set_cache_cap", { bytes }),
 

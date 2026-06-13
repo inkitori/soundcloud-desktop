@@ -9,6 +9,7 @@ import {
   trackArtist,
   trackTitle,
 } from "../lib/format";
+import { startDownload } from "../lib/downloads";
 import { openAddToPlaylist } from "../lib/modals";
 import {
   refreshDownloads,
@@ -87,7 +88,7 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
           {trackTitle(track)}
         </div>
         <div className="truncate text-xs text-zinc-400">
-          {track.user ? (
+          {track.user?.id ? (
             <Link to={`/artist/${track.user.id}`} className="hover:text-zinc-200 hover:underline">
               {trackArtist(track)}
             </Link>
@@ -144,6 +145,19 @@ export function TrackRow({ track, onPlay }: TrackRowProps) {
         </button>
         <DownloadButton trackId={track.id} cached={cached} progress={progress} blocked={blocked} />
       </div>
+      {/* Persistent status (hidden while the hover actions are showing). */}
+      {progress != null ? (
+        <span
+          className="tabular-nums text-[10px] text-zinc-400 group-hover:hidden"
+          title="Downloading…"
+        >
+          {Math.round(progress * 100)}%
+        </span>
+      ) : cached ? (
+        <span className="text-emerald-400 group-hover:hidden" title="Downloaded for offline">
+          <IconCheck size={14} />
+        </span>
+      ) : null}
       {liked && (
         <span className="text-orange-500 group-hover:hidden">
           <IconHeartFilled size={13} />
@@ -191,7 +205,7 @@ function DownloadButton({
   }
   return (
     <button
-      onClick={blocked ? undefined : () => void api.downloadTrack(trackId, true)}
+      onClick={blocked ? undefined : () => startDownload(trackId)}
       className="rounded p-1.5 text-zinc-400 hover:bg-white/10"
       title="Download for offline"
     >

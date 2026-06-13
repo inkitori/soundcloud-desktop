@@ -381,6 +381,29 @@ pub async fn download_track(
     Ok(())
 }
 
+/// Batch download (a playlist, album, or a page of likes). Each track is
+/// spawned independently and queues on the DownloadManager's concurrency
+/// semaphore; per-track outcomes still arrive via download:done / download:error
+/// so the frontend can tally a summary.
+#[tauri::command]
+pub async fn download_many(
+    app: AppHandle,
+    sc: Sc<'_>,
+    cache: Cache<'_>,
+    dm: Dm<'_>,
+    track_ids: Vec<u64>,
+    pin: bool,
+) -> Result<()> {
+    for track_id in track_ids {
+        let sc = Arc::clone(&sc);
+        let cache = Arc::clone(&cache);
+        let dm = Arc::clone(&dm);
+        let app = app.clone();
+        tauri::async_runtime::spawn(downloader::run_download(app, sc, cache, dm, track_id, pin));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn cancel_download(dm: Dm<'_>, track_id: u64) -> Result<()> {
     dm.cancel(track_id);
@@ -400,6 +423,34 @@ pub async fn set_pinned(cache: Cache<'_>, track_id: u64, pinned: bool) -> Result
 #[tauri::command]
 pub async fn list_downloads(cache: Cache<'_>) -> Result<Vec<CachedRow>> {
     cache.list()
+}
+
+/// One-time repair for downloads made before artist_id / local-art existed:
+/// fetch the tracks (batched) to fill in the artist id (so artist links work)
+/// and cache any missing cover art (so OS Now-Playing art works offline).
+/// Returns the number of rows touched; safe to call repeatedly (idempotent).
+#[tauri::command]
+pub async fn backfill_downloads(sc: Sc<'_>, cache: Cache<'_>) -> Result<u64> {
+    let ids = cache.ids_needing_backfill()?;
+    if ids.is_empty() {
+        return Ok(0);
+    }
+    let mut touched = 0u64;
+    for chunk in ids.chunks(50) {
+        let tracks = sc.ep_tracks_by_ids(chunk).await?;
+        for t in tracks {
+            if let Some(u) = &t.user {
+                let _ = cache.set_artist_id(t.id, u.id);
+            }
+            if !cache.art_path(t.id).is_file() {
+                if let Some(url) = t.artwork_url.as_deref() {
+                    let _ = downloader::cache_artwork(&sc, &cache, t.id, url).await;
+                }
+            }
+            touched += 1;
+        }
+    }
+    Ok(touched)
 }
 
 #[tauri::command]

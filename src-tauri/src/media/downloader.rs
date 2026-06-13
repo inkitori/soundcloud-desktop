@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -7,6 +7,7 @@ use futures::future::join_all;
 use serde_json::json;
 use tauri::{AppHandle, Emitter};
 use tokio::io::AsyncWriteExt;
+use tokio::sync::Semaphore;
 
 use crate::error::{AppError, Result};
 use crate::media::cache::{CacheDb, CachedRow};
@@ -15,14 +16,29 @@ use crate::sc::client::ScClient;
 use crate::sc::models::Track;
 
 const SEGMENT_CONCURRENCY: usize = 4;
+/// Whole-track downloads that may run at once. Bounds batch ("download all")
+/// jobs so dozens of tracks don't hammer SoundCloud (and trip rate limiting);
+/// the rest queue on the semaphore and start as slots free.
+const MAX_CONCURRENT_DOWNLOADS: usize = 3;
 
-#[derive(Default)]
 pub struct DownloadManager {
     active: Mutex<HashSet<u64>>,
     cancelled: Mutex<HashSet<u64>>,
+    slots: Semaphore,
+}
+
+impl Default for DownloadManager {
+    fn default() -> Self {
+        Self {
+            active: Mutex::new(HashSet::new()),
+            cancelled: Mutex::new(HashSet::new()),
+            slots: Semaphore::new(MAX_CONCURRENT_DOWNLOADS),
+        }
+    }
 }
 
 impl DownloadManager {
+    /// Reserve the track; false means it's already queued or downloading.
     fn begin(&self, track_id: u64) -> bool {
         self.cancelled.lock().unwrap().remove(&track_id);
         self.active.lock().unwrap().insert(track_id)
@@ -54,7 +70,24 @@ pub async fn run_download(
     pin: bool,
 ) {
     if !dm.begin(track_id) {
-        return; // already downloading
+        return; // already queued or downloading
+    }
+    // Wait for a concurrency slot; batch jobs queue here instead of all at once.
+    let _permit = match dm.slots.acquire().await {
+        Ok(p) => p,
+        Err(_) => {
+            dm.finish(track_id);
+            return;
+        }
+    };
+    // Cancelled while it sat in the queue: report and skip the work.
+    if dm.is_cancelled(track_id) {
+        dm.finish(track_id);
+        let _ = app.emit(
+            "download:error",
+            json!({ "track_id": track_id, "message": "cancelled", "code": "cancelled", "cancelled": true }),
+        );
+        return;
     }
     let result = download_inner(&app, &sc, &cache, &dm, track_id, pin).await;
     dm.finish(track_id);
@@ -70,7 +103,12 @@ pub async fn run_download(
             let cancelled = dm.is_cancelled(track_id) || matches!(e, AppError::Other(ref m) if m == "cancelled");
             let _ = app.emit(
                 "download:error",
-                json!({ "track_id": track_id, "message": e.to_string(), "cancelled": cancelled }),
+                json!({
+                    "track_id": track_id,
+                    "message": e.to_string(),
+                    "code": e.code(),
+                    "cancelled": cancelled,
+                }),
             );
         }
     }
@@ -87,9 +125,7 @@ async fn download_inner(
     let track = sc.ep_track(track_id).await?;
     let stream = resolve_stream(sc, &track).await?;
     if stream.snipped {
-        return Err(AppError::Other(
-            "only a 30s preview is available for this track (Go+)".into(),
-        ));
+        return Err(AppError::PreviewOnly);
     }
 
     let part_path = cache.tmp_dir.join(format!("{track_id}.part"));
@@ -133,6 +169,14 @@ async fn download_inner(
         tokio::fs::rename(&part_path, &final_path).await?;
     }
 
+    // Best-effort cover-art cache so the offline library isn't all gray
+    // squares; a failure here must not fail the (already complete) download.
+    if let Some(url) = track.artwork_url.as_deref() {
+        if let Err(e) = cache_artwork(sc, cache, track_id, url).await {
+            tracing::warn!("artwork cache failed for {track_id}: {e}");
+        }
+    }
+
     let bytes = tokio::fs::metadata(&final_path).await?.len();
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -143,6 +187,7 @@ async fn download_inner(
         file_name,
         title: track.title.clone(),
         artist: track.user.as_ref().and_then(|u| u.username.clone()),
+        artist_id: track.user.as_ref().map(|u| u.id),
         artwork_url: track.artwork_url.clone(),
         duration_ms: track.duration,
         preset: stream.preset.clone(),
@@ -150,9 +195,30 @@ async fn download_inner(
         pinned: pin,
         downloaded_at: now,
         last_played_at: now,
+        art_path: None,
     };
     cache.insert_done(&row)?;
     Ok(row)
+}
+
+/// Fetch a track's cover art into the cache (as `{track_id}.jpg`). SoundCloud
+/// artwork URLs embed their size, so upgrade the `-large` thumbnail to 500x500.
+pub(crate) async fn cache_artwork(sc: &ScClient, cache: &CacheDb, track_id: u64, url: &str) -> Result<()> {
+    let big = url.replace("-large.", "-t500x500.");
+    let resp = sc.http.get(&big).send().await?;
+    if !resp.status().is_success() {
+        return Err(AppError::Other(format!("artwork HTTP {}", resp.status())));
+    }
+    let bytes = resp.bytes().await?;
+    write_file(&cache.art_path(track_id), &bytes).await?;
+    Ok(())
+}
+
+async fn write_file(path: &Path, bytes: &[u8]) -> Result<()> {
+    let mut file = tokio::fs::File::create(path).await?;
+    file.write_all(bytes).await?;
+    file.flush().await?;
+    Ok(())
 }
 
 async fn download_progressive(

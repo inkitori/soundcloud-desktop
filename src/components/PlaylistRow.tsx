@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { Playlist, Track } from "../api/types";
+import { downloadTracks } from "../lib/downloads";
 import { artwork, fmtCount, isBlocked, isStub, trackTitle } from "../lib/format";
+import { useDownloadStore, useLikedStore } from "../lib/stores";
 import { audioController } from "../player/audioController";
 import { usePlayerStore } from "../player/playerStore";
 import { playPlaylist } from "../player/playPlaylist";
-import { IconList, IconPause, IconPlay, Spinner } from "./Icons";
+import { IconCheck, IconDownload, IconHeartFilled, IconList, IconPause, IconPlay, Spinner } from "./Icons";
 
 const PREVIEW_TRACKS = 5;
 
@@ -87,6 +89,13 @@ export function PlaylistRow({ playlist }: { playlist: Playlist }) {
                 {year ? ` · ${year}` : ""} · {total} tracks
               </div>
             </div>
+            <button
+              onClick={() => void downloadTracks(playlist.tracks, playlist.title ?? "album")}
+              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:border-zinc-500"
+              title="Download all tracks for offline"
+            >
+              <IconDownload size={13} /> Download
+            </button>
           </div>
 
           {preview.length > 0 && (
@@ -131,6 +140,8 @@ function PreviewTrack({
   onPlay: () => void;
 }) {
   const blocked = isBlocked(track);
+  const cached = useDownloadStore((s) => track.id in s.cached);
+  const liked = useLikedStore((s) => s.ids.has(track.id));
   const art = artwork(track.artwork_url ?? track.user?.avatar_url, 120);
   return (
     <button
@@ -163,6 +174,16 @@ function PreviewTrack({
       >
         {trackTitle(track)}
       </span>
+      {liked && (
+        <span className="shrink-0 text-orange-500" title="Liked">
+          <IconHeartFilled size={12} />
+        </span>
+      )}
+      {cached && (
+        <span className="shrink-0 text-emerald-400" title="Downloaded for offline">
+          <IconCheck size={13} />
+        </span>
+      )}
       {track.playback_count != null && (
         <span className="flex shrink-0 items-center gap-1 text-[11px] tabular-nums text-zinc-500">
           <IconPlay size={10} />

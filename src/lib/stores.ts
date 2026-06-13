@@ -303,3 +303,30 @@ export function setDownloadProgress(trackId: number, pct: number | null) {
     return { progress };
   });
 }
+
+// ---- network (online / offline) ----
+
+interface NetworkState {
+  online: boolean;
+}
+
+export const useNetworkStore = create<NetworkState>(() => ({
+  online: typeof navigator === "undefined" ? true : navigator.onLine,
+}));
+
+export function setOnline(online: boolean) {
+  if (useNetworkStore.getState().online !== online) {
+    useNetworkStore.setState({ online });
+  }
+}
+
+/**
+ * Track connectivity off the browser's online/offline events. navigator.onLine
+ * in a webview flips reliably when the network interface goes up/down, which is
+ * the case that matters for "only downloads are available." Read failures with
+ * a `network` error code also flip us offline (see lib/events + api callers).
+ */
+export function initNetworkWatch() {
+  window.addEventListener("online", () => setOnline(true));
+  window.addEventListener("offline", () => setOnline(false));
+}

@@ -3,6 +3,7 @@ import { useAuthStore } from "../lib/stores";
 import { artwork } from "../lib/format";
 import soundcloudLogo from "../assets/soundcloud.png";
 import {
+  IconDownload,
   IconHeartFilled,
   IconHome,
   IconList,
@@ -15,6 +16,7 @@ const navItems = [
   { to: "/", label: "Feed", icon: IconHome },
   { to: "/likes", label: "Likes", icon: IconHeartFilled },
   { to: "/playlists", label: "Playlists", icon: IconList },
+  { to: "/downloads", label: "Downloads", icon: IconDownload },
   { to: "/search", label: "Search", icon: IconSearch },
 ];
 

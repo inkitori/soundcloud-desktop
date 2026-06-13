@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { usePlaylist, useTracksByIds } from "../api/queries";
 import {
+  IconDownload,
   IconHeart,
   IconHeartFilled,
   IconPlay,
@@ -9,6 +10,7 @@ import {
   Spinner,
 } from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
+import { downloadTracks } from "../lib/downloads";
 import { artwork, fmtDurationMs, isStub } from "../lib/format";
 import {
   toggleLikePlaylist,
@@ -87,6 +89,14 @@ export function PlaylistDetailPage() {
                 className="flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-40"
               >
                 <IconPlay size={16} /> Play all
+              </button>
+              <button
+                onClick={() => void downloadTracks(tracks, playlist.title ?? "playlist")}
+                disabled={tracks.length === 0}
+                className="flex items-center gap-2 rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 hover:border-zinc-500 disabled:opacity-40"
+                title="Download all tracks for offline"
+              >
+                <IconDownload size={14} /> Download
               </button>
               {playlist.user && me && playlist.user.id !== me.id && (
                 <>

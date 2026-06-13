@@ -130,6 +130,7 @@ export interface CachedRow {
   file_name: string;
   title?: string | null;
   artist?: string | null;
+  artist_id?: number | null;
   artwork_url?: string | null;
   duration_ms?: number | null;
   preset?: string | null;
@@ -137,6 +138,8 @@ export interface CachedRow {
   pinned: boolean;
   downloaded_at: number;
   last_played_at: number;
+  /** Absolute path to locally-cached cover art, when present (offline-safe). */
+  art_path?: string | null;
 }
 
 export interface CacheStats {

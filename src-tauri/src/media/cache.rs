@@ -15,6 +15,7 @@ pub struct CachedRow {
     pub file_name: String,
     pub title: Option<String>,
     pub artist: Option<String>,
+    pub artist_id: Option<u64>,
     pub artwork_url: Option<String>,
     pub duration_ms: Option<u64>,
     pub preset: Option<String>,
@@ -22,6 +23,10 @@ pub struct CachedRow {
     pub pinned: bool,
     pub downloaded_at: i64,
     pub last_played_at: i64,
+    /// Absolute path to a locally-cached artwork file, computed on read (not a
+    /// column). Present only when the jpg was downloaded and still exists.
+    #[serde(default)]
+    pub art_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -35,6 +40,10 @@ pub struct CacheDb {
     conn: Mutex<Connection>,
     pub audio_dir: PathBuf,
     pub tmp_dir: PathBuf,
+    /// Cached cover art, one `{track_id}.jpg` per download. Lives under
+    /// `audio/` so the existing `$APPDATA/audio/**` asset-protocol scope serves
+    /// it to the webview without extra config.
+    pub art_dir: PathBuf,
 }
 
 fn now_secs() -> i64 {
@@ -48,8 +57,10 @@ impl CacheDb {
     pub fn init(data_dir: &Path) -> Result<Self> {
         let audio_dir = data_dir.join("audio");
         let tmp_dir = data_dir.join("tmp");
+        let art_dir = audio_dir.join("art");
         std::fs::create_dir_all(&audio_dir)?;
         std::fs::create_dir_all(&tmp_dir)?;
+        std::fs::create_dir_all(&art_dir)?;
 
         let conn = Connection::open(data_dir.join("cache.db"))?;
         conn.execute_batch(
@@ -72,6 +83,10 @@ impl CacheDb {
             );",
         )?;
 
+        // Migration: artist_id was added after the first release. ALTER fails
+        // (harmlessly) once the column exists, so ignore the error.
+        let _ = conn.execute("ALTER TABLE tracks ADD COLUMN artist_id INTEGER", []);
+
         // Sweep leftovers from a previous run killed mid-download.
         if let Ok(entries) = std::fs::read_dir(&tmp_dir) {
             for entry in entries.flatten() {
@@ -83,7 +98,13 @@ impl CacheDb {
             conn: Mutex::new(conn),
             audio_dir,
             tmp_dir,
+            art_dir,
         })
+    }
+
+    /// Where this track's cached cover art lives (whether or not it exists yet).
+    pub fn art_path(&self, track_id: u64) -> PathBuf {
+        self.art_dir.join(format!("{track_id}.jpg"))
     }
 
     /// Path of a completed, still-present cached file; purges stale rows.
@@ -112,14 +133,15 @@ impl CacheDb {
         let conn = self.conn.lock().unwrap();
         conn.execute(
             "INSERT OR REPLACE INTO tracks
-             (track_id, file_name, title, artist, artwork_url, duration_ms, preset,
+             (track_id, file_name, title, artist, artist_id, artwork_url, duration_ms, preset,
               bytes, pinned, downloaded_at, last_played_at)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)",
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)",
             params![
                 row.track_id,
                 row.file_name,
                 row.title,
                 row.artist,
+                row.artist_id,
                 row.artwork_url,
                 row.duration_ms,
                 row.preset,
@@ -133,30 +155,42 @@ impl CacheDb {
     }
 
     pub fn list(&self) -> Result<Vec<CachedRow>> {
-        let conn = self.conn.lock().unwrap();
-        let mut stmt = conn.prepare(
-            "SELECT track_id, file_name, title, artist, artwork_url, duration_ms, preset,
-                    bytes, pinned, downloaded_at, last_played_at
-             FROM tracks ORDER BY downloaded_at DESC",
-        )?;
-        let rows = stmt
-            .query_map([], |r| {
+        let mut rows: Vec<CachedRow> = Vec::new();
+        {
+            let conn = self.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT track_id, file_name, title, artist, artist_id, artwork_url, duration_ms,
+                        preset, bytes, pinned, downloaded_at, last_played_at
+                 FROM tracks ORDER BY downloaded_at DESC",
+            )?;
+            let mapped = stmt.query_map([], |r| {
                 Ok(CachedRow {
                     track_id: r.get(0)?,
                     file_name: r.get(1)?,
                     title: r.get(2)?,
                     artist: r.get(3)?,
-                    artwork_url: r.get(4)?,
-                    duration_ms: r.get(5)?,
-                    preset: r.get(6)?,
-                    bytes: r.get(7)?,
-                    pinned: r.get::<_, i64>(8)? != 0,
-                    downloaded_at: r.get(9)?,
-                    last_played_at: r.get(10)?,
+                    artist_id: r.get(4)?,
+                    artwork_url: r.get(5)?,
+                    duration_ms: r.get(6)?,
+                    preset: r.get(7)?,
+                    bytes: r.get(8)?,
+                    pinned: r.get::<_, i64>(9)? != 0,
+                    downloaded_at: r.get(10)?,
+                    last_played_at: r.get(11)?,
+                    art_path: None,
                 })
-            })?
-            .filter_map(|r| r.ok())
-            .collect();
+            })?;
+            for row in mapped.flatten() {
+                rows.push(row);
+            }
+        }
+        // Resolve the on-disk artwork path per row (convention-based, no column).
+        for row in &mut rows {
+            let path = self.art_path(row.track_id);
+            if path.is_file() {
+                row.art_path = Some(path.to_string_lossy().to_string());
+            }
+        }
         Ok(rows)
     }
 
@@ -176,7 +210,29 @@ impl CacheDb {
         if let Some(name) = file_name {
             let _ = std::fs::remove_file(self.audio_dir.join(name));
         }
+        let _ = std::fs::remove_file(self.art_path(track_id));
         Ok(())
+    }
+
+    pub fn set_artist_id(&self, track_id: u64, artist_id: u64) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE tracks SET artist_id = ?2 WHERE track_id = ?1",
+            params![track_id, artist_id],
+        )?;
+        Ok(())
+    }
+
+    /// Downloads made before artist_id / local-art existed: their rows still
+    /// need a one-time backfill so the artist links work and OS Now-Playing art
+    /// is available offline.
+    pub fn ids_needing_backfill(&self) -> Result<Vec<u64>> {
+        Ok(self
+            .list()?
+            .into_iter()
+            .filter(|r| r.artist_id.is_none() || r.art_path.is_none())
+            .map(|r| r.track_id)
+            .collect())
     }
 
     pub fn set_pinned(&self, track_id: u64, pinned: bool) -> Result<()> {
