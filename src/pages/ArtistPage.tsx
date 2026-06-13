@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   useUser,
   useUserAlbums,
@@ -13,6 +13,7 @@ import {
 } from "../api/queries";
 import { Spinner } from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
+import { Modal } from "../components/Modal";
 import { PlaylistRow } from "../components/PlaylistRow";
 import { TrackRow } from "../components/TrackRow";
 import { UserRow } from "../components/UserRow";
@@ -21,27 +22,30 @@ import { useSessionLikes } from "../lib/sessionLikes";
 import { toggleFollowUser, useAuthStore, useSocialStore } from "../lib/stores";
 import { playContext } from "../player/queueStore";
 
-const TABS = [
-  "popular",
-  "tracks",
-  "albums",
-  "playlists",
-  "reposts",
-  "likes",
-  "followers",
-  "following",
-] as const;
+const TABS = ["popular", "tracks", "albums", "playlists", "reposts", "likes"] as const;
 type Tab = (typeof TABS)[number];
+
+type UserListKind = "followers" | "following";
 
 /** Doubles as the user's own profile page (linked from the sidebar). */
 export function ArtistPage() {
   const { id } = useParams();
   const userId = Number(id);
   const { data: user, isLoading, error } = useUser(userId);
-  const [tab, setTab] = useState<Tab>("popular");
+  // Keep the active tab in the URL so clicking a new artist (a fresh /artist/:id
+  // link with no tab) defaults to "popular", while the back button restores the
+  // tab from history.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : "popular";
+  const setTab = (t: Tab) => setSearchParams({ tab: t }, { replace: true });
   const me = useAuthStore((s) => s.status?.me);
   const following = useSocialStore((s) => s.followedUsers.has(userId));
   const isMe = me?.id === userId;
+  // Followers/following open in a popup rather than as tabs. Close it when the
+  // artist changes, since this page component is reused across /artist/:id.
+  const [userList, setUserList] = useState<UserListKind | null>(null);
+  useEffect(() => setUserList(null), [userId]);
 
   if (error) {
     return (
@@ -82,11 +86,11 @@ export function ArtistPage() {
               )}
             </h1>
             <div className="text-sm text-zinc-400">
-              <button onClick={() => setTab("followers")} className="hover:text-zinc-200">
+              <button onClick={() => setUserList("followers")} className="hover:text-zinc-200">
                 {fmtCount(user.followers_count)} followers
               </button>
               {" · "}
-              <button onClick={() => setTab("following")} className="hover:text-zinc-200">
+              <button onClick={() => setUserList("following")} className="hover:text-zinc-200">
                 {fmtCount(user.followings_count)} following
               </button>
               {" · "}
@@ -130,9 +134,10 @@ export function ArtistPage() {
         {tab === "playlists" && <UserPlaylistsTab userId={userId} kind="playlists" />}
         {tab === "reposts" && <UserRepostsTab userId={userId} />}
         {tab === "likes" && <UserLikesTab userId={userId} />}
-        {tab === "followers" && <UserListTab userId={userId} kind="followers" />}
-        {tab === "following" && <UserListTab userId={userId} kind="following" />}
       </div>
+      {userList && (
+        <UserListModal userId={userId} kind={userList} onClose={() => setUserList(null)} />
+      )}
     </div>
   );
 }
@@ -219,35 +224,45 @@ function UserRepostsTab({ userId }: { userId: number }) {
   );
 }
 
-function UserListTab({ userId, kind }: { userId: number; kind: "followers" | "following" }) {
+function UserListModal({
+  userId,
+  kind,
+  onClose,
+}: {
+  userId: number;
+  kind: UserListKind;
+  onClose: () => void;
+}) {
   const followers = useUserFollowers(userId, kind === "followers");
   const followings = useUserFollowings(userId, kind === "following");
   const q = kind === "followers" ? followers : followings;
   const users = useMemo(() => q.data?.pages.flatMap((p) => p.collection) ?? [], [q.data]);
-  if (q.isLoading) return <Loading />;
-  if (users.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-        {kind === "followers" ? "No followers yet" : "Not following anyone yet"}
-      </div>
-    );
-  }
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
-      <div className="space-y-1">
-        {users.map((u) => (
-          <UserRow key={u.id} user={u} />
-        ))}
-      </div>
-      {q.hasNextPage && (
-        <button
-          onClick={() => void q.fetchNextPage()}
-          className="mx-auto my-4 block rounded-full bg-white/5 px-4 py-1.5 text-xs text-zinc-300 hover:bg-white/10"
-        >
-          {q.isFetchingNextPage ? <Spinner size={14} /> : "Load more"}
-        </button>
+    <Modal title={kind === "followers" ? "Followers" : "Following"} onClose={onClose}>
+      {q.isLoading ? (
+        <div className="flex justify-center py-6 text-zinc-500">
+          <Spinner size={24} />
+        </div>
+      ) : users.length === 0 ? (
+        <p className="py-4 text-center text-xs text-zinc-500">
+          {kind === "followers" ? "No followers yet" : "Not following anyone yet"}
+        </p>
+      ) : (
+        <div className="space-y-1">
+          {users.map((u) => (
+            <UserRow key={u.id} user={u} />
+          ))}
+          {q.hasNextPage && (
+            <button
+              onClick={() => void q.fetchNextPage()}
+              className="mx-auto my-3 block rounded-full bg-white/5 px-4 py-1.5 text-xs text-zinc-300 hover:bg-white/10"
+            >
+              {q.isFetchingNextPage ? <Spinner size={14} /> : "Load more"}
+            </button>
+          )}
+        </div>
       )}
-    </div>
+    </Modal>
   );
 }
 

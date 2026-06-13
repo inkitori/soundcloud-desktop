@@ -1,4 +1,4 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { useAuthStore } from "../lib/stores";
 import { artwork } from "../lib/format";
 import soundcloudLogo from "../assets/soundcloud.png";
@@ -30,9 +30,10 @@ export function Sidebar() {
 
   return (
     <nav className="flex w-52 shrink-0 flex-col border-r border-zinc-800 bg-zinc-950/60">
-      <div className="flex items-center gap-2 px-4 py-5">
-        <img src={soundcloudLogo} alt="SoundCloud" className="h-[26px] w-[26px]" />
-        <span className="text-base font-bold tracking-tight text-zinc-100">SoundCloud</span>
+      <div className="flex items-center justify-center px-4 py-5">
+        <Link to="/" aria-label="Go to feed">
+          <img src={soundcloudLogo} alt="Logo" className="h-11 w-11" />
+        </Link>
       </div>
       <div className="flex flex-col gap-0.5 px-2">
         {navItems.map(({ to, label, icon: Icon }) => (
