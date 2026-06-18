@@ -71,6 +71,7 @@ pub fn run() {
             commands::search_tracks,
             commands::search_users,
             commands::search_playlists,
+            commands::search_all,
             commands::resolve_url,
             commands::get_waveform,
             commands::get_playback_source,

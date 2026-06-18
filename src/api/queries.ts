@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { markLiked } from "../lib/stores";
 import { api } from "./commands";
 import type { Page } from "./types";
@@ -7,6 +7,9 @@ function useInfinite<T>(
   key: unknown[],
   fetcher: (next?: string) => Promise<Page<T>>,
   enabled = true,
+  // When the key changes often (e.g. search-as-you-type), keep the previous
+  // key's data visible while the next request loads instead of flashing empty.
+  keepPrevious = false,
 ) {
   return useInfiniteQuery({
     queryKey: key,
@@ -19,6 +22,7 @@ function useInfinite<T>(
     enabled,
     staleTime: 60_000,
     retry: 1,
+    placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
 }
 
@@ -96,11 +100,21 @@ export function useUserFollowings(id: number, enabled = true) {
 }
 
 export function useSearchTracks(q: string) {
-  return useInfinite(["search", "tracks", q], (next) => api.searchTracks(q, next), q.length > 1);
+  return useInfinite(
+    ["search", "tracks", q],
+    (next) => api.searchTracks(q, next),
+    q.length > 1,
+    true,
+  );
 }
 
 export function useSearchUsers(q: string) {
-  return useInfinite(["search", "users", q], (next) => api.searchUsers(q, next), q.length > 1);
+  return useInfinite(
+    ["search", "users", q],
+    (next) => api.searchUsers(q, next),
+    q.length > 1,
+    true,
+  );
 }
 
 export function useSearchPlaylists(q: string) {
@@ -108,7 +122,12 @@ export function useSearchPlaylists(q: string) {
     ["search", "playlists", q],
     (next) => api.searchPlaylists(q, next),
     q.length > 1,
+    true,
   );
+}
+
+export function useSearchAll(q: string) {
+  return useInfinite(["search", "all", q], (next) => api.searchAll(q, next), q.length > 1, true);
 }
 
 export function useWaveform(url: string | null | undefined) {

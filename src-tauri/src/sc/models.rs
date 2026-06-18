@@ -171,6 +171,17 @@ pub enum ResolvedEntity {
     Unknown,
 }
 
+/// One item from the universal `/search` collection. Serialize-only: built by
+/// hand from each item's `kind` discriminator (mirrors `ResolvedEntity`), then
+/// sent to the frontend as `{ "kind": "...", "<field>": {...} }`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SearchItem {
+    Track { track: Track },
+    User { user: User },
+    Playlist { playlist: Playlist },
+}
+
 /// The id sets behind heart/repost/follow toggles, mirrored client-side so
 /// every row can show its state without per-item requests.
 #[derive(Debug, Clone, Serialize)]

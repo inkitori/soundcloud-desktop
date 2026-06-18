@@ -264,6 +264,11 @@ pub async fn search_playlists(
 }
 
 #[tauri::command]
+pub async fn search_all(sc: Sc<'_>, q: String, next_href: Option<String>) -> Result<Page<SearchItem>> {
+    sc.ep_search_all(&q, next_href).await
+}
+
+#[tauri::command]
 pub async fn resolve_url(sc: Sc<'_>, url: String) -> Result<ResolvedEntity> {
     sc.ep_resolve(&url).await
 }

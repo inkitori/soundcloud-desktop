@@ -9,6 +9,7 @@ import type {
   PlaybackSource,
   Playlist,
   ResolvedEntity,
+  SearchItem,
   SocialIds,
   Track,
   User,
@@ -60,6 +61,8 @@ export const api = {
     invoke<Page<User>>("search_users", { q, nextHref: nextHref ?? null }),
   searchPlaylists: (q: string, nextHref?: string) =>
     invoke<Page<Playlist>>("search_playlists", { q, nextHref: nextHref ?? null }),
+  searchAll: (q: string, nextHref?: string) =>
+    invoke<Page<SearchItem>>("search_all", { q, nextHref: nextHref ?? null }),
   resolveUrl: (url: string) => invoke<ResolvedEntity>("resolve_url", { url }),
   getWaveform: (url: string) => invoke<Waveform>("get_waveform", { url }),
 

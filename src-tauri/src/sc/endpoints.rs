@@ -262,6 +262,18 @@ impl ScClient {
         self.search_page("/search/playlists", q, next).await
     }
 
+    pub async fn ep_search_all(&self, q: &str, next: Option<String>) -> Result<Page<SearchItem>> {
+        let v = match next {
+            Some(href) => self.get_value(&href, &[]).await?,
+            None => {
+                let mut params = lp(20);
+                params.push(("q", q.to_string()));
+                self.get_value("/search", &params).await?
+            }
+        };
+        Ok(parse_search_collection(v))
+    }
+
     async fn search_page<T: serde::de::DeserializeOwned>(
         &self,
         path: &str,
@@ -404,5 +416,83 @@ impl ScClient {
         let method = if on { Method::POST } else { Method::DELETE };
         self.write_request(method, &format!("/me/followings/{user_id}"), None)
             .await
+    }
+}
+
+/// Build a `Page<SearchItem>` from a universal `/search` response, reading each
+/// item's `kind` field and dropping any item that isn't a renderable kind or
+/// fails to deserialize (same resilience as `parse_items`).
+fn parse_search_collection(v: serde_json::Value) -> Page<SearchItem> {
+    let next_href = v.get("next_href").and_then(Value::as_str).map(str::to_owned);
+    let collection = v
+        .get("collection")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| {
+                    let kind = item.get("kind").and_then(Value::as_str)?;
+                    match kind {
+                        "track" => serde_json::from_value::<Track>(item.clone())
+                            .map_err(|e| tracing::warn!("search: skipping malformed track: {e}"))
+                            .ok()
+                            .map(|track| SearchItem::Track { track }),
+                        "user" => serde_json::from_value::<User>(item.clone())
+                            .map_err(|e| tracing::warn!("search: skipping malformed user: {e}"))
+                            .ok()
+                            .map(|user| SearchItem::User { user }),
+                        "playlist" => serde_json::from_value::<Playlist>(item.clone())
+                            .map_err(|e| tracing::warn!("search: skipping malformed playlist: {e}"))
+                            .ok()
+                            .map(|playlist| SearchItem::Playlist { playlist }),
+                        _ => None,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Page { collection, next_href }
+}
+
+#[cfg(test)]
+mod search_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parses_mixed_kinds_and_skips_unknown() {
+        let v = json!({
+            "collection": [
+                { "kind": "track", "id": 1, "title": "A", "user": { "id": 9, "username": "u" } },
+                { "kind": "user", "id": 2, "username": "Artist" },
+                { "kind": "playlist", "id": 3, "title": "P", "user": { "id": 9, "username": "u" } },
+                { "kind": "something-else", "id": 4 }
+            ],
+            "next_href": "https://api-v2.soundcloud.com/search?offset=20"
+        });
+        let page = parse_search_collection(v);
+        assert_eq!(page.collection.len(), 3, "unknown kind should be skipped");
+        assert!(matches!(page.collection[0], SearchItem::Track { .. }));
+        assert!(matches!(page.collection[1], SearchItem::User { .. }));
+        assert!(matches!(page.collection[2], SearchItem::Playlist { .. }));
+        assert_eq!(page.next_href.as_deref(), Some("https://api-v2.soundcloud.com/search?offset=20"));
+    }
+
+    #[test]
+    fn skips_malformed_known_kind_item() {
+        // "id" must be a number; passing a string makes Track deserialization fail.
+        let v = json!({
+            "collection": [
+                { "kind": "track", "id": "not-a-number", "title": "Bad" },
+                { "kind": "track", "id": 42, "title": "Good" }
+            ],
+            "next_href": null
+        });
+        let page = parse_search_collection(v);
+        assert_eq!(page.collection.len(), 1, "malformed track should be dropped");
+        assert!(matches!(page.collection[0], SearchItem::Track { .. }));
+        if let SearchItem::Track { ref track } = page.collection[0] {
+            assert_eq!(track.id, 42);
+        }
     }
 }
