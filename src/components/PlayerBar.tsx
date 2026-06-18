@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { trackArt, trackArtist, trackTitle } from "../lib/format";
+import { toggleLikeTrack, useLikedStore } from "../lib/stores";
 import { audioController } from "../player/audioController";
 import { usePlayerStore } from "../player/playerStore";
 import {
@@ -11,6 +12,8 @@ import {
   useQueueStore,
 } from "../player/queueStore";
 import {
+  IconHeart,
+  IconHeartFilled,
   IconNext,
   IconPause,
   IconPlay,
@@ -33,6 +36,7 @@ export function PlayerBar() {
   const repeat = useQueueStore((s) => s.repeat);
   const radio = useQueueStore((s) => s.radio);
   const panelOpen = useQueueStore((s) => s.panelOpen);
+  const liked = useLikedStore((s) => (track ? s.ids.has(track.id) : false));
 
   const art = track ? trackArt(track, 200) : null;
 
@@ -60,6 +64,15 @@ export function PlayerBar() {
                 {snipped && <span className="text-amber-400">30s preview</span>}
               </div>
             </div>
+            <button
+              onClick={() => void toggleLikeTrack(track)}
+              className={`ml-auto shrink-0 rounded p-2 hover:bg-white/10 ${
+                liked ? "text-orange-500" : "text-zinc-400"
+              }`}
+              title={liked ? "Unlike" : "Like"}
+            >
+              {liked ? <IconHeartFilled size={18} /> : <IconHeart size={18} />}
+            </button>
           </>
         ) : (
           <span className="text-sm text-zinc-500">Nothing playing</span>
