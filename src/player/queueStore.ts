@@ -166,9 +166,16 @@ async function fetchRelatedInto(): Promise<number> {
   }
 }
 
+/** Consecutive play failures before we stop auto-advancing through the queue. */
+const MAX_CONSECUTIVE_SKIPS = 3;
+
 // Wire the controller's lifecycle callbacks (single direction import).
 audioController.onEnded = () => next(true);
-audioController.onUnrecoverable = () => {
+audioController.onUnrecoverable = (failures) => {
+  // A one-off failure skips to the next track. But once several fail in a row,
+  // the problem is the session (rate limit), not the track — stop advancing so
+  // it doesn't blast through the whole queue and the error stays on screen.
+  if (failures >= MAX_CONSECUTIVE_SKIPS) return;
   const { items, index } = get();
   if (index + 1 < items.length) next(true);
 };

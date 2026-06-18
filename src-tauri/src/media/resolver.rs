@@ -146,17 +146,48 @@ pub async fn get_playback_source(
         .as_ref()
         .map(|m| !m.transcodings.is_empty())
         .unwrap_or(false);
+    // Trace which resolve path a click takes (debug-level; enable with
+    // RUST_LOG=debug). The error!s below fire on failure regardless, since these
+    // resolve errors were previously returned silently.
+    tracing::debug!(
+        "resolve track {} has_media={} has_track_auth={} force_refresh={}",
+        track.id,
+        has_media,
+        track.track_authorization.is_some(),
+        force_refresh
+    );
     if has_media {
         match resolve_stream(sc, &track).await {
             Ok(stream) => return Ok(PlaybackSource::Stream { stream }),
-            Err(AppError::TokenExpired) => return Err(AppError::TokenExpired),
+            Err(AppError::TokenExpired) => {
+                tracing::error!("resolve track {} -> TokenExpired (refetch skipped)", track.id);
+                return Err(AppError::TokenExpired);
+            }
             Err(AppError::DrmProtected) => return Err(AppError::DrmProtected),
             // Stale client-side track JSON (rotated transcoding URLs etc.):
             // fall through to a fresh fetch and one more attempt.
-            Err(e) => tracing::warn!("resolve with client track failed ({e}); refetching"),
+            Err(e) => tracing::warn!("resolve track {} with client json failed ({e}); refetching", track.id),
         }
     }
-    let fresh = sc.ep_track(track.id).await?;
-    let stream = resolve_stream(sc, &fresh).await?;
+    let fresh = match sc.ep_track(track.id).await {
+        Ok(f) => f,
+        Err(e) => {
+            tracing::error!("refetch track {} failed: {e}", track.id);
+            return Err(e);
+        }
+    };
+    tracing::info!(
+        "refetched track {} has_media={} has_track_auth={}",
+        fresh.id,
+        fresh.media.as_ref().map(|m| !m.transcodings.is_empty()).unwrap_or(false),
+        fresh.track_authorization.is_some()
+    );
+    let stream = match resolve_stream(sc, &fresh).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::error!("resolve track {} after refetch failed: {e}", fresh.id);
+            return Err(e);
+        }
+    };
     Ok(PlaybackSource::Stream { stream })
 }
