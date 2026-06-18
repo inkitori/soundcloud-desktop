@@ -434,12 +434,15 @@ fn parse_search_collection(v: serde_json::Value) -> Page<SearchItem> {
                     let kind = item.get("kind").and_then(Value::as_str)?;
                     match kind {
                         "track" => serde_json::from_value::<Track>(item.clone())
+                            .map_err(|e| tracing::warn!("search: skipping malformed track: {e}"))
                             .ok()
                             .map(|track| SearchItem::Track { track }),
                         "user" => serde_json::from_value::<User>(item.clone())
+                            .map_err(|e| tracing::warn!("search: skipping malformed user: {e}"))
                             .ok()
                             .map(|user| SearchItem::User { user }),
                         "playlist" => serde_json::from_value::<Playlist>(item.clone())
+                            .map_err(|e| tracing::warn!("search: skipping malformed playlist: {e}"))
                             .ok()
                             .map(|playlist| SearchItem::Playlist { playlist }),
                         _ => None,
@@ -473,5 +476,23 @@ mod search_tests {
         assert!(matches!(page.collection[1], SearchItem::User { .. }));
         assert!(matches!(page.collection[2], SearchItem::Playlist { .. }));
         assert_eq!(page.next_href.as_deref(), Some("https://api-v2.soundcloud.com/search?offset=20"));
+    }
+
+    #[test]
+    fn skips_malformed_known_kind_item() {
+        // "id" must be a number; passing a string makes Track deserialization fail.
+        let v = json!({
+            "collection": [
+                { "kind": "track", "id": "not-a-number", "title": "Bad" },
+                { "kind": "track", "id": 42, "title": "Good" }
+            ],
+            "next_href": null
+        });
+        let page = parse_search_collection(v);
+        assert_eq!(page.collection.len(), 1, "malformed track should be dropped");
+        assert!(matches!(page.collection[0], SearchItem::Track { .. }));
+        if let SearchItem::Track { ref track } = page.collection[0] {
+            assert_eq!(track.id, 42);
+        }
     }
 }
