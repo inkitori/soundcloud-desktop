@@ -5,6 +5,13 @@ export type PlayerStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
 interface PlayerState {
   track: Track | null;
+  /**
+   * Stable identity of the playing queue entry (not the track id). The same
+   * track can appear in several feed rows — reposted by different people, or an
+   * artist's own post plus a repost — so highlighting keys off this, letting
+   * exactly one row light up. Null when nothing is playing.
+   */
+  entryKey: string | null;
   status: PlayerStatus;
   /** seconds */
   position: number;
@@ -18,6 +25,7 @@ interface PlayerState {
 
 export const usePlayerStore = create<PlayerState>(() => ({
   track: null,
+  entryKey: null,
   status: "idle",
   position: 0,
   duration: 0,
