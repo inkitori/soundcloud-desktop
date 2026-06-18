@@ -71,6 +71,15 @@ function CommandPaletteInner() {
     setHighlight((h) => Math.min(Math.max(h, 0), Math.max(0, items.length - 1)));
   }, [items.length]);
 
+  // Esc closes from anywhere in the overlay (matches Modal.tsx).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeCommandPalette();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const anyLoading =
     hasQuery && (tracksQ.isLoading || usersQ.isLoading || playlistsQ.isLoading);
   const noResults =
@@ -81,15 +90,19 @@ function CommandPaletteInner() {
     closeCommandPalette();
   };
 
+  // Play a result track within the visible track results so next/prev flow.
+  const playTrack = (track: Track) => {
+    const idx = tracks.findIndex((t) => t.id === track.id);
+    playContext(tracks, Math.max(0, idx));
+  };
+
   // Enter / click: act and close.
   const activate = (item: Item) => {
     switch (item.kind) {
-      case "track": {
-        const idx = tracks.findIndex((t) => t.id === item.track.id);
-        playContext(tracks, Math.max(0, idx));
+      case "track":
+        playTrack(item.track);
         closeCommandPalette();
         break;
-      }
       case "artist":
         navigate(`/artist/${item.user.id}`);
         closeCommandPalette();
@@ -107,11 +120,9 @@ function CommandPaletteInner() {
   // Shift+Enter: play and keep the overlay open (tracks + playlists); else fall back.
   const playStay = (item: Item) => {
     switch (item.kind) {
-      case "track": {
-        const idx = tracks.findIndex((t) => t.id === item.track.id);
-        playContext(tracks, Math.max(0, idx));
+      case "track":
+        playTrack(item.track);
         break;
-      }
       case "playlist":
         void playPlaylist(item.playlist);
         break;
@@ -121,10 +132,7 @@ function CommandPaletteInner() {
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") {
-      e.preventDefault();
-      closeCommandPalette();
-    } else if (e.key === "ArrowDown") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       setHighlight((h) => Math.min(h + 1, items.length - 1));
     } else if (e.key === "ArrowUp") {
@@ -212,12 +220,15 @@ function ResultList({
   onHover: (i: number) => void;
   onActivate: (item: Item) => void;
 }) {
-  let lastKind = "";
   return (
     <>
       {items.map((item, i) => {
-        const header = item.kind !== lastKind && item.kind !== "showAll" ? sectionLabel(item.kind) : null;
-        lastKind = item.kind;
+        // Header before the first row of each kind. Relies on `items` being
+        // grouped by kind (tracks → artists → playlists → showAll).
+        const header =
+          item.kind !== "showAll" && item.kind !== items[i - 1]?.kind
+            ? sectionLabel(item.kind)
+            : null;
         return (
           <div key={i}>
             {header && (
