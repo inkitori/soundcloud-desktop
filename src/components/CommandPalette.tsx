@@ -1,16 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSearchPlaylists, useSearchTracks, useSearchUsers } from "../api/queries";
+import { useSearchAll } from "../api/queries";
 import type { Playlist, Track, User } from "../api/types";
 import { artwork, fmtCount, trackArt, trackArtist, trackTitle } from "../lib/format";
 import { closeCommandPalette, useCommandPalette } from "../lib/commandPalette";
 import { playPlaylist } from "../player/playPlaylist";
 import { playContext } from "../player/queueStore";
 import { IconList, IconSearch, IconUser, Spinner } from "./Icons";
-
-const MAX_TRACKS = 4;
-const MAX_ARTISTS = 3;
-const MAX_PLAYLISTS = 3;
 
 type Item =
   | { kind: "track"; track: Track }
@@ -31,40 +27,37 @@ function CommandPaletteInner() {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
 
-  // Debounce the raw input into the query that drives the search hooks.
+  // Debounce the raw input into the query that drives the search hooks. Kept
+  // short so results start loading quickly; previous results stay on screen
+  // (keepPreviousData) so a new keystroke never blanks the list.
   useEffect(() => {
-    const t = setTimeout(() => setQuery(input.trim()), 250);
+    const t = setTimeout(() => setQuery(input.trim()), 150);
     return () => clearTimeout(t);
   }, [input]);
 
   const hasQuery = query.length > 1;
-  const tracksQ = useSearchTracks(query);
-  const usersQ = useSearchUsers(query);
-  const playlistsQ = useSearchPlaylists(query);
+  const searchQ = useSearchAll(query);
 
-  const tracks = useMemo(
-    () => (tracksQ.data?.pages[0]?.collection ?? []).slice(0, MAX_TRACKS),
-    [tracksQ.data],
-  );
-  const artists = useMemo(
-    () => (usersQ.data?.pages[0]?.collection ?? []).slice(0, MAX_ARTISTS),
-    [usersQ.data],
-  );
-  const playlists = useMemo(
-    () => (playlistsQ.data?.pages[0]?.collection ?? []).slice(0, MAX_PLAYLISTS),
-    [playlistsQ.data],
-  );
+  const MAX_RESULTS = 16;
 
-  // One flat list in render order so keyboard nav has a single index space.
+  // One flat list in SoundCloud's relevance order; first row is the default
+  // highlight (no separate "top result" card). `user` -> `artist` Item kind.
   const items = useMemo<Item[]>(() => {
     if (!hasQuery) return [];
-    return [
-      ...tracks.map((track): Item => ({ kind: "track", track })),
-      ...artists.map((user): Item => ({ kind: "artist", user })),
-      ...playlists.map((playlist): Item => ({ kind: "playlist", playlist })),
-      { kind: "showAll" },
-    ];
-  }, [hasQuery, tracks, artists, playlists]);
+    const collection = (searchQ.data?.pages[0]?.collection ?? []).slice(0, MAX_RESULTS);
+    const mapped = collection.map((it): Item => {
+      if (it.kind === "track") return { kind: "track", track: it.track };
+      if (it.kind === "user") return { kind: "artist", user: it.user };
+      return { kind: "playlist", playlist: it.playlist };
+    });
+    return [...mapped, { kind: "showAll" }];
+  }, [hasQuery, searchQ.data]);
+
+  // Tracks in list order, so playing one flows next/prev through search tracks.
+  const trackList = useMemo(
+    () => items.flatMap((it) => (it.kind === "track" ? [it.track] : [])),
+    [items],
+  );
 
   // Keep the highlight inside the current item range.
   useEffect(() => {
@@ -80,10 +73,11 @@ function CommandPaletteInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const anyLoading =
-    hasQuery && (tracksQ.isLoading || usersQ.isLoading || playlistsQ.isLoading);
-  const noResults =
-    hasQuery && !anyLoading && tracks.length === 0 && artists.length === 0 && playlists.length === 0;
+  // isLoading is only true on the first fetch for a term with no prior data;
+  // once keepPreviousData kicks in, refetches surface via isFetching instead.
+  const anyLoading = hasQuery && searchQ.isLoading;
+  const anyFetching = hasQuery && searchQ.isFetching;
+  const noResults = hasQuery && !anyLoading && trackList.length === 0 && items.length <= 1;
 
   const goSearch = () => {
     navigate(`/search?q=${encodeURIComponent(query)}`);
@@ -92,8 +86,8 @@ function CommandPaletteInner() {
 
   // Play a result track within the visible track results so next/prev flow.
   const playTrack = (track: Track) => {
-    const idx = tracks.findIndex((t) => t.id === track.id);
-    playContext(tracks, Math.max(0, idx));
+    const idx = trackList.findIndex((t) => t.id === track.id);
+    playContext(trackList, Math.max(0, idx));
   };
 
   // Enter / click: act and close.
@@ -165,6 +159,9 @@ function CommandPaletteInner() {
             placeholder="Search tracks, artists, playlists…"
             className="w-full bg-transparent text-sm text-zinc-100 outline-none placeholder:text-zinc-600"
           />
+          {anyFetching && !anyLoading && (
+            <Spinner size={14} className="shrink-0 text-zinc-500" />
+          )}
         </div>
 
         <div className="max-h-[60vh] overflow-y-auto py-2">
@@ -222,39 +219,19 @@ function ResultList({
 }) {
   return (
     <>
-      {items.map((item, i) => {
-        // Header before the first row of each kind. Relies on `items` being
-        // grouped by kind (tracks → artists → playlists → showAll).
-        const header =
-          item.kind !== "showAll" && item.kind !== items[i - 1]?.kind
-            ? sectionLabel(item.kind)
-            : null;
-        return (
-          <div key={i}>
-            {header && (
-              <div className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                {header}
-              </div>
-            )}
-            <Row
-              item={item}
-              index={i}
-              active={i === highlight}
-              query={query}
-              onHover={onHover}
-              onActivate={onActivate}
-            />
-          </div>
-        );
-      })}
+      {items.map((item, i) => (
+        <Row
+          key={i}
+          item={item}
+          index={i}
+          active={i === highlight}
+          query={query}
+          onHover={onHover}
+          onActivate={onActivate}
+        />
+      ))}
     </>
   );
-}
-
-function sectionLabel(kind: Item["kind"]): string {
-  if (kind === "track") return "Tracks";
-  if (kind === "artist") return "Artists";
-  return "Playlists";
 }
 
 function Row({
@@ -280,7 +257,24 @@ function Row({
       className={`flex w-full items-center gap-3 px-4 py-2 text-left ${active ? "bg-white/10" : ""}`}
     >
       <RowContent item={item} query={query} />
+      {item.kind !== "showAll" && <TypePill item={item} />}
     </button>
+  );
+}
+
+function TypePill({ item }: { item: Exclude<Item, { kind: "showAll" }> }) {
+  const label =
+    item.kind === "track"
+      ? "Track"
+      : item.kind === "artist"
+        ? "Artist"
+        : item.playlist.is_album
+          ? "Album"
+          : "Playlist";
+  return (
+    <span className="ml-auto shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
+      {label}
+    </span>
   );
 }
 
