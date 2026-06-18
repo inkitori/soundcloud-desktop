@@ -148,6 +148,23 @@ async function toggleInSet(
 }
 
 export async function toggleLikeTrack(track: Track) {
+  const willLike = !useLikedStore.getState().ids.has(track.id);
+  // Snapshot the overlay so a failed write can restore it exactly.
+  const prevUnliked = sessionUnliked.has(track.id);
+  const prevLiked = sessionLikedTracks.get(track.id);
+
+  // Apply the overlay optimistically (mirroring the heart store) so navigating
+  // to Likes right after the click already shows the change. The write routes
+  // through the webview and can lag, and the Likes overlay snapshots at mount,
+  // so a post-await update would otherwise be missed until the next visit.
+  if (willLike) {
+    sessionUnliked.delete(track.id);
+    sessionLikedTracks.set(track.id, track);
+  } else {
+    sessionUnliked.add(track.id);
+    sessionLikedTracks.delete(track.id);
+  }
+
   const ok = await toggleInSet(
     () => useLikedStore.getState().ids,
     (ids) => useLikedStore.setState({ ids }),
@@ -155,13 +172,13 @@ export async function toggleLikeTrack(track: Track) {
     (on) => (on ? api.likeTrack(track.id) : api.unlikeTrack(track.id)),
     "like",
   );
-  if (!ok) return;
-  if (useLikedStore.getState().ids.has(track.id)) {
-    sessionUnliked.delete(track.id);
-    sessionLikedTracks.set(track.id, track);
-  } else {
-    sessionUnliked.add(track.id);
-    sessionLikedTracks.delete(track.id);
+  if (!ok) {
+    // Restore the overlay to its pre-click state.
+    if (prevUnliked) sessionUnliked.add(track.id);
+    else sessionUnliked.delete(track.id);
+    if (prevLiked) sessionLikedTracks.set(track.id, prevLiked);
+    else sessionLikedTracks.delete(track.id);
+    return;
   }
   staleAfterWrite(["my-likes"], ["user-likes", myId()]);
 }
