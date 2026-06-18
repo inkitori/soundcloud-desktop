@@ -23,11 +23,12 @@ export function QueuePanel() {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto p-2">
-        {items.map((track, i) => {
+        {items.map((entry, i) => {
+          const track = entry.track;
           const isCurrent = i === index && track.id === playingId;
           return (
             <div
-              key={`${track.id}-${i}`}
+              key={entry.key}
               className={`group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/5 ${
                 isCurrent ? "bg-white/5" : ""
               } ${i < index ? "opacity-50" : ""}`}

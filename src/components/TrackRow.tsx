@@ -38,11 +38,19 @@ import {
 interface TrackRowProps {
   track: Track;
   onPlay: () => void;
+  /**
+   * Override "is this the playing row". Lists where the same track can appear
+   * more than once (the feed) pass this so only the clicked row highlights;
+   * everywhere else it falls back to matching the playing track's id.
+   */
+  isCurrent?: boolean;
 }
 
-export function TrackRow({ track, onPlay }: TrackRowProps) {
-  const isCurrent = usePlayerStore((s) => s.track?.id === track.id);
-  const isPlaying = usePlayerStore((s) => s.status === "playing") && isCurrent;
+export function TrackRow({ track, onPlay, isCurrent: isCurrentOverride }: TrackRowProps) {
+  const idCurrent = usePlayerStore((s) => s.track?.id === track.id);
+  const playing = usePlayerStore((s) => s.status === "playing");
+  const isCurrent = isCurrentOverride ?? idCurrent;
+  const isPlaying = isCurrent && playing;
   const liked = useLikedStore((s) => s.ids.has(track.id));
   const reposted = useSocialStore((s) => s.repostedTracks.has(track.id));
   const cached = useDownloadStore((s) => track.id in s.cached);

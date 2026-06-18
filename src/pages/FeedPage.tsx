@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { useFeed } from "../api/queries";
-import type { FeedItem, Track } from "../api/types";
+import type { FeedItem } from "../api/types";
 import { IconDownload, IconRadio, Spinner } from "../components/Icons";
 import { PlaylistRow } from "../components/PlaylistRow";
 import { TrackRow } from "../components/TrackRow";
 import { useNetworkStore } from "../lib/stores";
+import { usePlayerStore } from "../player/playerStore";
 import { playContext } from "../player/queueStore";
 
 export function FeedPage() {
@@ -35,10 +36,24 @@ export function FeedPage() {
     }
     return out;
   }, [data]);
-  const feedTracks = useMemo(
-    () => items.flatMap(({ item }) => (item.track ? [item.track] : [])),
+  // Playable feed rows paired with their stable key. The same track can appear
+  // in several rows (reposted by different people); the key disambiguates which
+  // row is playing, while playContext de-dupes the actual queue by track id.
+  const feedPlayable = useMemo(
+    () => items.flatMap(({ item, key }) => (item.track ? [{ track: item.track, key }] : [])),
     [items],
   );
+  const currentKey = usePlayerStore((s) => s.entryKey);
+
+  const playFromKey = (key: string) => {
+    const idx = feedPlayable.findIndex((p) => p.key === key);
+    if (idx < 0) return;
+    playContext(
+      feedPlayable.map((p) => p.track),
+      idx,
+      feedPlayable.map((p) => p.key),
+    );
+  };
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -70,9 +85,8 @@ export function FeedPage() {
           <FeedRow
             key={key}
             item={item}
-            onPlayTrack={(track) =>
-              playContext(feedTracks, feedTracks.findIndex((t) => t.id === track.id))
-            }
+            isCurrent={currentKey === key}
+            onPlay={() => playFromKey(key)}
           />
         ))}
       </div>
@@ -94,10 +108,12 @@ function feedItemKey(item: FeedItem): string {
 
 function FeedRow({
   item,
-  onPlayTrack,
+  isCurrent,
+  onPlay,
 }: {
   item: FeedItem;
-  onPlayTrack: (track: Track) => void;
+  isCurrent: boolean;
+  onPlay: () => void;
 }) {
   const isRepost = item.type.includes("repost");
   const attribution = isRepost && item.user?.username && (
@@ -111,7 +127,7 @@ function FeedRow({
     return (
       <div>
         {attribution}
-        <TrackRow track={item.track} onPlay={() => onPlayTrack(item.track!)} />
+        <TrackRow track={item.track} isCurrent={isCurrent} onPlay={onPlay} />
       </div>
     );
   }

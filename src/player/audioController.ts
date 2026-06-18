@@ -263,7 +263,7 @@ class AudioController {
     this.currentTrack = null;
     this.audio.pause();
     this.audio.removeAttribute("src");
-    usePlayerStore.setState({ track: null, status: "idle", position: 0, duration: 0 });
+    usePlayerStore.setState({ track: null, entryKey: null, status: "idle", position: 0, duration: 0 });
   }
 }
 

@@ -3,11 +3,29 @@ import { api } from "../api/commands";
 import type { Track } from "../api/types";
 import { isBlocked, isSnipped } from "../lib/format";
 import { audioController } from "./audioController";
+import { usePlayerStore } from "./playerStore";
 
 export type RepeatMode = "off" | "all" | "one";
 
+/**
+ * One slot in the play queue. `key` is a stable identity used for highlighting:
+ * it carries the originating row's key when seeded from a list (so the exact
+ * row you clicked lights up, even if the same track appears elsewhere), or a
+ * synthetic id for queue-only entries (radio, "add to queue").
+ */
+export interface QueueItem {
+  track: Track;
+  key: string;
+}
+
+let keySeq = 0;
+function synthKey(): string {
+  keySeq += 1;
+  return `q${keySeq}`;
+}
+
 interface QueueState {
-  items: Track[];
+  items: QueueItem[];
   index: number;
   repeat: RepeatMode;
   radio: boolean;
@@ -29,25 +47,47 @@ const set = useQueueStore.setState;
 
 function currentTrack(): Track | null {
   const { items, index } = get();
-  return items[index] ?? null;
+  return items[index]?.track ?? null;
 }
 
 async function playIndex(index: number) {
   const { items } = get();
-  const track = items[index];
-  if (!track) return;
+  const entry = items[index];
+  if (!entry) return;
   set({ index });
-  await audioController.playTrack(track);
+  usePlayerStore.setState({ entryKey: entry.key });
+  await audioController.playTrack(entry.track);
   void maybeExtendRadio();
 }
 
-/** Replace the queue with a list context (a page of likes, a playlist, ...). */
-export function playContext(tracks: Track[], startIndex: number) {
-  const playable = tracks.filter((t) => !isBlocked(t));
-  if (playable.length === 0) return;
+/**
+ * Replace the queue with a list context (a page of likes, a playlist, the
+ * feed, ...). Drops geo-blocked tracks and de-dupes by track id (keep first) so
+ * the same song never plays twice — important for the feed, where one track can
+ * be reposted by several people. `keys` (parallel to `tracks`) carries each
+ * row's stable identity for highlighting; omit it for lists with no duplicates.
+ */
+export function playContext(tracks: Track[], startIndex: number, keys?: string[]) {
   const target = tracks[startIndex];
-  const index = Math.max(0, playable.findIndex((t) => t.id === target?.id));
-  set({ items: playable, index });
+  const clickedKey = keys?.[startIndex];
+  const seen = new Set<number>();
+  const items: QueueItem[] = [];
+  tracks.forEach((track, i) => {
+    if (isBlocked(track) || seen.has(track.id)) return;
+    seen.add(track.id);
+    items.push({ track, key: keys?.[i] ?? synthKey() });
+  });
+  if (items.length === 0) return;
+  let index = items.findIndex((it) => it.track.id === target?.id);
+  if (index >= 0) {
+    // The de-duped queue keeps the first occurrence's slot, but if the user
+    // clicked a later duplicate (e.g. a second repost), the highlight should
+    // follow the row they actually clicked.
+    if (clickedKey) items[index] = { track: items[index].track, key: clickedKey };
+  } else {
+    index = 0;
+  }
+  set({ items, index });
   void playIndex(index);
 }
 
@@ -58,12 +98,12 @@ export function playNow(track: Track) {
 export function addNext(track: Track) {
   const { items, index } = get();
   const next = [...items];
-  next.splice(index + 1, 0, track);
+  next.splice(index + 1, 0, { track, key: synthKey() });
   set({ items: next });
 }
 
 export function addLast(track: Track) {
-  set({ items: [...get().items, track] });
+  set({ items: [...get().items, { track, key: synthKey() }] });
 }
 
 export function removeAt(removeIndex: number) {
@@ -85,7 +125,7 @@ export function next(auto = false) {
   }
   let candidate = index + 1;
   // Skip geo-blocked entries on auto-advance.
-  while (candidate < items.length && auto && isBlocked(items[candidate])) {
+  while (candidate < items.length && auto && isBlocked(items[candidate].track)) {
     candidate += 1;
   }
   if (candidate < items.length) {
@@ -150,12 +190,12 @@ async function fetchRelatedInto(): Promise<number> {
   set({ radioLoading: true });
   try {
     const page = await api.getRelatedTracks(track.id);
-    const existing = new Set(get().items.map((t) => t.id));
+    const existing = new Set(get().items.map((it) => it.track.id));
     const fresh = page.collection.filter(
       (t) => !existing.has(t.id) && !isBlocked(t) && !isSnipped(t),
     );
     if (fresh.length > 0) {
-      set({ items: [...get().items, ...fresh] });
+      set({ items: [...get().items, ...fresh.map((track) => ({ track, key: synthKey() }))] });
     }
     return fresh.length;
   } catch (e) {
