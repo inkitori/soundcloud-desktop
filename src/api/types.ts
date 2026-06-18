@@ -81,6 +81,11 @@ export interface LikeItem {
   playlist?: Playlist | null;
 }
 
+export type SearchItem =
+  | { kind: "track"; track: Track }
+  | { kind: "user"; user: User }
+  | { kind: "playlist"; playlist: Playlist };
+
 export interface Page<T> {
   collection: T[];
   next_href?: string | null;
