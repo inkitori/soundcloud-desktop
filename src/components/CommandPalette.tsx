@@ -8,6 +8,8 @@ import { playPlaylist } from "../player/playPlaylist";
 import { playContext } from "../player/queueStore";
 import { IconList, IconSearch, IconUser, Spinner } from "./Icons";
 
+const MAX_RESULTS = 16;
+
 type Item =
   | { kind: "track"; track: Track }
   | { kind: "artist"; user: User }
@@ -37,8 +39,6 @@ function CommandPaletteInner() {
 
   const hasQuery = query.length > 1;
   const searchQ = useSearchAll(query);
-
-  const MAX_RESULTS = 16;
 
   // One flat list in SoundCloud's relevance order; first row is the default
   // highlight (no separate "top result" card). `user` -> `artist` Item kind.
