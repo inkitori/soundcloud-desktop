@@ -4,6 +4,7 @@ import { audioController } from "../player/audioController";
 import { next, prev } from "../player/queueStore";
 import { isUnavailableCode, settleBatchTrack } from "./downloads";
 import { useLoginStore } from "./login";
+import { toggleCommandPalette } from "./commandPalette";
 import { closeAuthModal, openAuthModal } from "./modals";
 import {
   loadSocialIds,
@@ -95,6 +96,12 @@ export function initEvents() {
   );
 
   window.addEventListener("keydown", (e) => {
+    // ⌘K / Ctrl+K toggles quick search from anywhere, even while typing.
+    if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      toggleCommandPalette();
+      return;
+    }
     const target = e.target as HTMLElement | null;
     const typing =
       target instanceof HTMLInputElement ||

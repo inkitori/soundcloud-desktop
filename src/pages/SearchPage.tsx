@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useSearchPlaylists, useSearchTracks, useSearchUsers } from "../api/queries";
 import { IconSearch, Spinner } from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
@@ -8,9 +9,22 @@ import { UserRow } from "../components/UserRow";
 type Tab = "tracks" | "artists" | "playlists";
 
 export function SearchPage() {
-  const [input, setInput] = useState(() => sessionStorage.getItem("search-q") ?? "");
+  const [params] = useSearchParams();
+  const [input, setInput] = useState(
+    () => params.get("q") ?? sessionStorage.getItem("search-q") ?? "",
+  );
   const [query, setQuery] = useState(input);
   const [tab, setTab] = useState<Tab>("tracks");
+
+  // Deep-link from the ⌘K overlay: when the URL query changes (incl. while this
+  // page is already mounted), adopt it.
+  useEffect(() => {
+    const q = params.get("q");
+    if (q != null) {
+      setInput(q);
+      setQuery(q.trim());
+    }
+  }, [params]);
 
   useEffect(() => {
     const t = setTimeout(() => {

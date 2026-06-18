@@ -2,10 +2,13 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { api } from "../api/commands";
 import type { Track } from "../api/types";
 import { trackArt, trackArtist, trackTitle } from "../lib/format";
+import { showToast } from "../lib/toast";
 import { usePlayerStore } from "./playerStore";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAYS_MS = [1000, 3000, 8000];
+/** Retries for an initial click before the track is declared unplayable. */
+const INITIAL_PLAY_RETRIES = 2;
 /** Re-resolve before resuming if the signed URL is within a minute of expiry. */
 const EXPIRY_MARGIN_MS = 60_000;
 /** Watchdog: currentTime frozen this long while "playing" triggers recovery. */
@@ -30,10 +33,12 @@ class AudioController {
   private recovering = false;
   private lastWatchTime = -1;
   private frozenTicks = 0;
+  /** Plays that failed (after retries) back-to-back; reset on any success. */
+  private consecutiveFailures = 0;
 
   /** Wired by queueStore to avoid an import cycle. */
   onEnded: () => void = () => {};
-  onUnrecoverable: () => void = () => {};
+  onUnrecoverable: (failures: number) => void = () => {};
 
   constructor() {
     const audio = this.audio;
@@ -119,17 +124,42 @@ class AudioController {
       (track.duration ?? 0) / 1000,
       track.permalink_url ?? null,
     );
-    try {
-      await this.setSource(false);
-      if (seq !== this.loadSeq) return; // superseded by a newer playTrack
-      await this.audio.play();
-      void api.notePlayed(track.id);
-    } catch (e) {
-      if (seq !== this.loadSeq) return;
-      console.error("playTrack failed", e);
-      usePlayerStore.setState({ status: "error", error: errMessage(e) });
-      this.onUnrecoverable();
+    // Transient failures (rate limits, a stale signed URL) are common on a
+    // click; retry with backoff and a forced re-resolve before giving up.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.setSource(attempt > 0);
+        if (seq !== this.loadSeq) return; // superseded by a newer playTrack
+        await this.audio.play();
+        if (seq !== this.loadSeq) return;
+        this.consecutiveFailures = 0;
+        void api.notePlayed(track.id);
+        return;
+      } catch (e) {
+        if (seq !== this.loadSeq) return;
+        if (attempt < INITIAL_PLAY_RETRIES) {
+          const delay = RETRY_DELAYS_MS[attempt] ?? 8000;
+          console.warn(
+            `play attempt ${attempt + 1} for ${track.id} failed; retrying in ${delay}ms`,
+            e,
+          );
+          await sleep(delay);
+          if (seq !== this.loadSeq) return;
+          continue;
+        }
+        console.error("playTrack failed", e);
+        this.giveUp(track, errMessage(e));
+        return;
+      }
     }
+  }
+
+  /** Mark the current track unplayable, surface it, and let the queue react. */
+  private giveUp(track: Track, reason: string) {
+    this.consecutiveFailures += 1;
+    usePlayerStore.setState({ status: "error", error: reason });
+    showToast(`Couldn't play "${trackTitle(track)}" — ${reason}`, "error");
+    this.onUnrecoverable(this.consecutiveFailures);
   }
 
   private async setSource(forceRefresh: boolean) {
@@ -179,8 +209,7 @@ class AudioController {
     const track = this.currentTrack;
     if (!track || this.recovering) return;
     if (this.retries >= MAX_RETRIES) {
-      usePlayerStore.setState({ status: "error", error: "playback failed after retries" });
-      this.onUnrecoverable();
+      this.giveUp(track, "playback failed after retries");
       return;
     }
     this.recovering = true;

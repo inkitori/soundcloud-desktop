@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { api } from "./api/commands";
 import { AuthModals } from "./components/AuthModals";
+import { CommandPalette } from "./components/CommandPalette";
 import { IconCloud, Spinner } from "./components/Icons";
 import { PlayerBar } from "./components/PlayerBar";
 import { PlaylistModals } from "./components/PlaylistModals";
@@ -101,6 +102,7 @@ export default function App() {
       <PlayerBar />
       <AuthModals />
       <PlaylistModals />
+      <CommandPalette />
     </div>
   );
 }
