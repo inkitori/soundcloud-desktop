@@ -77,7 +77,8 @@ function CommandPaletteInner() {
   // once keepPreviousData kicks in, refetches surface via isFetching instead.
   const anyLoading = hasQuery && searchQ.isLoading;
   const anyFetching = hasQuery && searchQ.isFetching;
-  const noResults = hasQuery && !anyLoading && trackList.length === 0 && items.length <= 1;
+  // items always ends with the showAll row, so length <= 1 means zero results.
+  const noResults = hasQuery && !anyLoading && items.length <= 1;
 
   const goSearch = () => {
     navigate(`/search?q=${encodeURIComponent(query)}`);
