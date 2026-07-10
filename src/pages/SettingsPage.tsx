@@ -105,6 +105,9 @@ function ManualTokenRow() {
           onChange={(e) => setToken(e.target.value)}
           placeholder="paste new oauth_token"
           spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          autoComplete="off"
           className="flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-orange-500"
         />
         <button
@@ -165,6 +168,9 @@ function DatadomeRow({ configured }: { configured: boolean }) {
           onChange={(e) => setCookie(e.target.value)}
           placeholder="paste datadome cookie"
           spellCheck={false}
+          autoCorrect="off"
+          autoCapitalize="off"
+          autoComplete="off"
           className="flex-1 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-orange-500"
         />
         <button
@@ -310,6 +316,9 @@ function CacheSection() {
             value={capGb}
             onChange={(e) => setCapGb(e.target.value)}
             placeholder="cap in GB"
+            spellCheck={false}
+            autoCorrect="off"
+            autoComplete="off"
             className="w-28 rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-zinc-100 outline-none focus:border-orange-500"
           />
           <button

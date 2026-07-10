@@ -95,6 +95,8 @@ function CreatePlaylistModal() {
     <Modal title="New playlist" onClose={closeCreatePlaylist}>
       <input
         autoFocus
+        spellCheck={false}
+        autoCorrect="off"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => {
@@ -181,6 +183,8 @@ function AddToPlaylistInner({ track }: { track: NonNullable<Track> }) {
         <div>
           <input
             autoFocus
+            spellCheck={false}
+            autoCorrect="off"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyDown={(e) => {

@@ -51,6 +51,10 @@ export function SearchPage() {
           <IconSearch size={16} className="text-zinc-500" />
           <input
             autoFocus
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Search tracks, artists, playlists…"

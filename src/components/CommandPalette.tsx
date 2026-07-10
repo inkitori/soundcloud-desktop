@@ -149,11 +149,15 @@ function CommandPaletteInner() {
         if (e.target === e.currentTarget) closeCommandPalette();
       }}
     >
-      <div className="w-[34rem] max-w-[92vw] overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-2xl">
+      <div className="w-[34rem] max-w-[92vw] overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 shadow-2xl">
         <div className="flex items-center gap-2 border-b border-zinc-800 px-4 py-3">
           <IconSearch size={16} className="text-zinc-500" />
           <input
             autoFocus
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            autoComplete="off"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
@@ -251,19 +255,23 @@ function Row({
   onActivate: (item: Item) => void;
 }) {
   return (
-    <button
-      type="button"
-      onMouseEnter={() => onHover(index)}
-      onClick={() => onActivate(item)}
-      className={`flex w-full items-center gap-3 px-4 py-2 text-left ${active ? "bg-white/10" : ""}`}
-    >
-      <RowContent item={item} query={query} />
-      {item.kind !== "showAll" && <TypePill item={item} />}
-    </button>
+    <div className="px-2">
+      <button
+        type="button"
+        onMouseEnter={() => onHover(index)}
+        onClick={() => onActivate(item)}
+        className={`flex w-full items-center gap-3 rounded-md px-2 py-2 text-left ${
+          active ? "bg-white/10" : ""
+        }`}
+      >
+        <RowContent item={item} query={query} />
+        {item.kind !== "showAll" && <TypeLabel item={item} />}
+      </button>
+    </div>
   );
 }
 
-function TypePill({ item }: { item: Exclude<Item, { kind: "showAll" }> }) {
+function TypeLabel({ item }: { item: Exclude<Item, { kind: "showAll" }> }) {
   const label =
     item.kind === "track"
       ? "Track"
@@ -272,11 +280,7 @@ function TypePill({ item }: { item: Exclude<Item, { kind: "showAll" }> }) {
         : item.playlist.is_album
           ? "Album"
           : "Playlist";
-  return (
-    <span className="ml-auto shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[11px] text-zinc-400">
-      {label}
-    </span>
-  );
+  return <span className="ml-auto shrink-0 text-[11px] text-zinc-500">{label}</span>;
 }
 
 function RowContent({ item, query }: { item: Item; query: string }) {
@@ -325,7 +329,8 @@ function RowContent({ item, query }: { item: Item; query: string }) {
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm text-zinc-100">{item.playlist.title ?? "Untitled"}</div>
             <div className="truncate text-xs text-zinc-500">
-              Playlist · {item.playlist.track_count ?? item.playlist.tracks.length} tracks
+              {item.playlist.user?.username ? `${item.playlist.user.username} · ` : ""}
+              {item.playlist.track_count ?? item.playlist.tracks.length} tracks
             </div>
           </div>
         </>
