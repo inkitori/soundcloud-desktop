@@ -35,22 +35,11 @@ function AccountSection({ username }: { username?: string | null }) {
         Account
       </h2>
       <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-        <div className="flex items-center gap-2">
-          <p className="text-sm text-zinc-300">
-            Logged in as <span className="font-semibold text-zinc-100">{username ?? "…"}</span>
-          </p>
-          <span
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-              datadomeSet ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
-            }`}
-            title="Whether likes, reposts and playlist edits are unblocked"
-          >
-            {datadomeSet ? "Writes enabled" : "Writes blocked"}
-          </span>
-        </div>
+        <p className="text-sm text-zinc-300">
+          Logged in as <span className="font-semibold text-zinc-100">{username ?? "…"}</span>
+        </p>
         <p className="mt-1 text-xs text-zinc-500">
-          If your session expires or likes stop working, refresh it here — a SoundCloud sign-in
-          window opens and closes by itself.
+          Refresh your session if likes stop working or you get signed out.
         </p>
         <div className="mt-3 flex items-center gap-3">
           <button
@@ -158,14 +147,10 @@ function DatadomeRow({ configured }: { configured: boolean }) {
 
   return (
     <div className="mt-3 rounded-lg border border-zinc-800 bg-zinc-900 p-4">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-medium text-zinc-200">Likes &amp; playlist edits</span>
-        <span
-          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-            configured ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"
-          }`}
-        >
-          {configured ? "Enabled" : "Needs cookie"}
+      <div className="flex items-baseline gap-2">
+        <span className="text-sm font-medium text-zinc-200">datadome cookie</span>
+        <span className={`text-xs ${configured ? "text-emerald-400" : "text-zinc-500"}`}>
+          {configured ? "set" : "not set"}
         </span>
       </div>
       <p className="mt-1 text-xs text-zinc-500">
