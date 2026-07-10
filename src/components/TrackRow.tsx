@@ -22,7 +22,7 @@ import {
 import { showToast } from "../lib/toast";
 import { usePlayerStore } from "../player/playerStore";
 import { addLast } from "../player/queueStore";
-import { openTrackMenu } from "./TrackContextMenu";
+import { openTrackMenu } from "./ContextMenu";
 import {
   IconCheck,
   IconDownload,

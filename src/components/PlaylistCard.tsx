@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import type { Playlist } from "../api/types";
 import { artwork } from "../lib/format";
 import { playPlaylist } from "../player/playPlaylist";
+import { openPlaylistMenu } from "./ContextMenu";
 import { IconList, IconPlay, Spinner } from "./Icons";
 
 export function PlaylistCard({ playlist }: { playlist: Playlist }) {
@@ -15,6 +16,13 @@ export function PlaylistCard({ playlist }: { playlist: Playlist }) {
   return (
     <Link
       to={`/playlist/${playlist.id}`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openPlaylistMenu(e, playlist, () => {
+          setBusy(true);
+          void playPlaylist(playlist).finally(() => setBusy(false));
+        });
+      }}
       className="group w-40 shrink-0 rounded-lg p-2 transition-colors hover:bg-white/5"
     >
       <div className="relative mb-2 aspect-square w-full overflow-hidden rounded-md bg-zinc-800">

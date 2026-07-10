@@ -12,6 +12,7 @@ import {
   toggleShuffle,
   useQueueStore,
 } from "../player/queueStore";
+import { openTrackMenu } from "./ContextMenu";
 import {
   IconHeart,
   IconHeartFilled,
@@ -46,7 +47,17 @@ export function PlayerBar() {
 
   return (
     <footer className="flex h-20 shrink-0 items-center gap-4 border-t border-zinc-800 bg-zinc-900/95 px-4">
-      <div className="flex w-64 min-w-0 items-center gap-3">
+      <div
+        className="flex w-64 min-w-0 items-center gap-3"
+        onContextMenu={
+          track
+            ? (e) => {
+                e.preventDefault();
+                openTrackMenu(e, track);
+              }
+            : undefined
+        }
+      >
         {track ? (
           <>
             <div className="h-12 w-12 shrink-0 overflow-hidden rounded bg-zinc-800">

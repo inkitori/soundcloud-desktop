@@ -11,7 +11,7 @@ import { Sidebar } from "./components/Sidebar";
 import { Toasts } from "./components/Toasts";
 import { TokenGate } from "./components/TokenGate";
 import { TopBar } from "./components/TopBar";
-import { TrackContextMenu } from "./components/TrackContextMenu";
+import { AppContextMenu } from "./components/ContextMenu";
 import { initEvents } from "./lib/events";
 import { startLogin } from "./lib/login";
 import {
@@ -105,7 +105,7 @@ export default function App() {
       <AuthModals />
       <PlaylistModals />
       <CommandPalette />
-      <TrackContextMenu />
+      <AppContextMenu />
     </div>
   );
 }

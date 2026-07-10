@@ -7,6 +7,7 @@ import { useDownloadStore, useLikedStore } from "../lib/stores";
 import { audioController } from "../player/audioController";
 import { usePlayerStore } from "../player/playerStore";
 import { playPlaylist } from "../player/playPlaylist";
+import { openPlaylistMenu, openTrackMenu } from "./ContextMenu";
 import { IconCheck, IconDownload, IconHeartFilled, IconList, IconPause, IconPlay, Spinner } from "./Icons";
 
 const PREVIEW_TRACKS = 5;
@@ -38,7 +39,13 @@ export function PlaylistRow({ playlist }: { playlist: Playlist }) {
   };
 
   return (
-    <div className="rounded-lg p-3 transition-colors hover:bg-white/[0.03]">
+    <div
+      className="rounded-lg p-3 transition-colors hover:bg-white/[0.03]"
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openPlaylistMenu(e, playlist, () => start());
+      }}
+    >
       <div className="flex gap-4">
         <Link
           to={`/playlist/${playlist.id}`}
@@ -148,6 +155,12 @@ function PreviewTrack({
       onClick={blocked ? undefined : onPlay}
       disabled={blocked}
       title={blocked ? "Unavailable in your region" : undefined}
+      onContextMenu={(e) => {
+        // The row above owns the playlist menu; preview tracks get their own.
+        e.preventDefault();
+        e.stopPropagation();
+        openTrackMenu(e, track, blocked ? undefined : onPlay);
+      }}
       className={`group flex h-9 w-full items-center gap-2.5 rounded px-2 text-left hover:bg-white/5 ${
         blocked ? "opacity-50" : ""
       }`}

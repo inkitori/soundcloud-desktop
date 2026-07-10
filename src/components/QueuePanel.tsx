@@ -2,6 +2,7 @@ import { useState } from "react";
 import { fmtDurationMs, trackArt, trackArtist, trackTitle } from "../lib/format";
 import { usePlayerStore } from "../player/playerStore";
 import { jumpTo, moveItem, removeAt, togglePanel, useQueueStore } from "../player/queueStore";
+import { openTrackMenu } from "./ContextMenu";
 import { IconX } from "./Icons";
 
 export function QueuePanel() {
@@ -48,6 +49,10 @@ export function QueuePanel() {
                 endDrag();
               }}
               onDragEnd={endDrag}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                openTrackMenu(e, track, () => jumpTo(i));
+              }}
               className={`group flex cursor-grab items-center gap-2 rounded px-2 py-1.5 hover:bg-white/5 ${
                 isCurrent ? "bg-white/5" : ""
               } ${i < index ? "opacity-50" : ""} ${

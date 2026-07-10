@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { User } from "../api/types";
 import { artwork, fmtCount } from "../lib/format";
 import { toggleFollowUser, useAuthStore, useSocialStore } from "../lib/stores";
+import { openUserMenu } from "./ContextMenu";
 
 /** A user in a list (search results, followers/following) with a follow toggle. */
 export function UserRow({ user }: { user: User }) {
@@ -12,6 +13,10 @@ export function UserRow({ user }: { user: User }) {
   return (
     <Link
       to={`/artist/${user.id}`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        openUserMenu(e, user);
+      }}
       className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-white/5"
     >
       <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-zinc-800">
