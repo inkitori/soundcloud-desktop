@@ -97,6 +97,7 @@ function TrackResults({ query }: { query: string }) {
   if (isLoading) return <Loading />;
   return (
     <InfiniteTrackList
+      contextTo="/search"
       tracks={tracks}
       hasNextPage={!!hasNextPage}
       isFetchingNextPage={isFetchingNextPage}

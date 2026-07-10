@@ -29,8 +29,12 @@ interface QueueState {
   index: number;
   repeat: RepeatMode;
   radio: boolean;
+  shuffle: boolean;
   panelOpen: boolean;
   radioLoading: boolean;
+  /** Route of the list this queue was seeded from (playlist, likes, …);
+   * the player-bar title links here. Null for one-off plays. */
+  contextTo: string | null;
 }
 
 export const useQueueStore = create<QueueState>(() => ({
@@ -38,8 +42,10 @@ export const useQueueStore = create<QueueState>(() => ({
   index: -1,
   repeat: "off",
   radio: true,
+  shuffle: false,
   panelOpen: false,
   radioLoading: false,
+  contextTo: null,
 }));
 
 const get = useQueueStore.getState;
@@ -67,11 +73,16 @@ async function playIndex(index: number) {
  * be reposted by several people. `keys` (parallel to `tracks`) carries each
  * row's stable identity for highlighting; omit it for lists with no duplicates.
  */
-export function playContext(tracks: Track[], startIndex: number, keys?: string[]) {
+export function playContext(
+  tracks: Track[],
+  startIndex: number,
+  keys?: string[],
+  contextTo?: string,
+) {
   const target = tracks[startIndex];
   const clickedKey = keys?.[startIndex];
   const seen = new Set<number>();
-  const items: QueueItem[] = [];
+  let items: QueueItem[] = [];
   tracks.forEach((track, i) => {
     if (isBlocked(track) || seen.has(track.id)) return;
     seen.add(track.id);
@@ -87,7 +98,17 @@ export function playContext(tracks: Track[], startIndex: number, keys?: string[]
   } else {
     index = 0;
   }
-  set({ items, index });
+  // With shuffle on, a new context starts with the clicked track and plays
+  // the rest in random order (the pre-shuffle order is kept for toggle-off).
+  if (get().shuffle && items.length > 1) {
+    unshuffled = items;
+    const current = items[index];
+    const rest = items.filter((_, i) => i !== index);
+    shuffleArray(rest);
+    items = [current, ...rest];
+    index = 0;
+  }
+  set({ items, index, contextTo: contextTo ?? null });
   void playIndex(index);
 }
 
@@ -115,6 +136,76 @@ export function removeAt(removeIndex: number) {
 
 export function jumpTo(index: number) {
   void playIndex(index);
+}
+
+/** Drag-reorder: move a queue entry, keeping `index` on the same entry. */
+export function moveItem(from: number, to: number) {
+  const { items, index } = get();
+  if (from === to || !items[from] || to < 0 || to >= items.length) return;
+  const next = [...items];
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  let newIndex = index;
+  if (from === index) {
+    newIndex = to;
+  } else {
+    if (from < index) newIndex -= 1;
+    if (to <= newIndex) newIndex += 1;
+  }
+  set({ items: next, index: newIndex });
+}
+
+/** Fisher–Yates, in place. */
+function shuffleArray<T>(arr: T[]) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+/** The queue's pre-shuffle order, so turning shuffle off restores it. */
+let unshuffled: QueueItem[] | null = null;
+
+/**
+ * Spotify semantics: on turns the rest of the queue random (current track
+ * stays put, moved to the front); off restores the seeded order, keeping
+ * rows added and dropping rows removed while shuffled.
+ */
+export function toggleShuffle() {
+  const { shuffle, items, index } = get();
+  if (!shuffle) {
+    unshuffled = items;
+    const current = items[index];
+    const rest = items.filter((_, i) => i !== index);
+    shuffleArray(rest);
+    set({ shuffle: true, items: current ? [current, ...rest] : rest, index: current ? 0 : -1 });
+    return;
+  }
+  const currentKey = items[index]?.key;
+  const base = unshuffled ?? items;
+  const live = new Set(items.map((it) => it.key));
+  const known = new Set(base.map((it) => it.key));
+  const restored = [
+    ...base.filter((it) => live.has(it.key)),
+    ...items.filter((it) => !known.has(it.key)),
+  ];
+  unshuffled = null;
+  set({
+    shuffle: false,
+    items: restored,
+    index: currentKey ? restored.findIndex((it) => it.key === currentKey) : -1,
+  });
+}
+
+/** Restore a persisted queue without starting playback (session resume). */
+export function seedQueue(
+  tracks: Track[],
+  index: number,
+  opts: { repeat: RepeatMode; radio: boolean; shuffle: boolean; contextTo: string | null },
+) {
+  const items: QueueItem[] = tracks.map((track) => ({ track, key: synthKey() }));
+  set({ items, index, ...opts });
+  usePlayerStore.setState({ entryKey: items[index]?.key ?? null });
 }
 
 export function next(auto = false) {

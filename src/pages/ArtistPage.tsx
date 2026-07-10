@@ -151,6 +151,7 @@ function UserTrackTab({ userId, kind }: { userId: number; kind: "popular" | "tra
   if (q.isLoading) return <Loading />;
   return (
     <InfiniteTrackList
+      contextTo={`/artist/${userId}`}
       tracks={tracks}
       hasNextPage={!!q.hasNextPage}
       isFetchingNextPage={q.isFetchingNextPage}
@@ -174,6 +175,7 @@ function UserLikesTab({ userId }: { userId: number }) {
   if (q.isLoading) return <Loading />;
   return (
     <InfiniteTrackList
+      contextTo={`/artist/${userId}`}
       tracks={tracks}
       hasNextPage={!!q.hasNextPage}
       isFetchingNextPage={q.isFetchingNextPage}
@@ -207,7 +209,12 @@ function UserRepostsTab({ userId }: { userId: number }) {
               key={`t-${item.track.id}-${i}`}
               track={item.track}
               onPlay={() =>
-                playContext(tracks, tracks.findIndex((t) => t.id === item.track!.id))
+                playContext(
+                  tracks,
+                  tracks.findIndex((t) => t.id === item.track!.id),
+                  undefined,
+                  `/artist/${userId}`,
+                )
               }
             />
           ) : item.playlist ? (

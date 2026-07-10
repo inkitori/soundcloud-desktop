@@ -61,6 +61,7 @@ export function PlaylistDetailPage() {
 
   return (
     <InfiniteTrackList
+      contextTo={`/playlist/${playlistId}`}
       tracks={tracks}
       hasNextPage={false}
       isFetchingNextPage={false}
@@ -94,7 +95,7 @@ export function PlaylistDetailPage() {
             </div>
             <div className="mt-3 flex items-center gap-2">
               <button
-                onClick={() => playContext(tracks, 0)}
+                onClick={() => playContext(tracks, 0, undefined, `/playlist/${playlistId}`)}
                 disabled={tracks.length === 0}
                 className="flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-40"
               >

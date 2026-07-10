@@ -23,6 +23,7 @@ import {
   useNetworkStore,
 } from "./lib/stores";
 import { checkForUpdates } from "./lib/updater";
+import { initSessionResume } from "./player/sessionResume";
 import { ArtistPage } from "./pages/ArtistPage";
 import { DownloadsPage } from "./pages/DownloadsPage";
 import { FeedPage } from "./pages/FeedPage";
@@ -42,6 +43,7 @@ export default function App() {
   useEffect(() => {
     initEvents();
     initNetworkWatch();
+    initSessionResume();
     void refreshAuth();
     void refreshDownloads();
     // The backend presence actor defaults to enabled; only the opt-out needs replaying.

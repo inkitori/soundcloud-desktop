@@ -154,6 +154,33 @@ class AudioController {
     }
   }
 
+  /**
+   * Session resume: show `track` paused at `at` without resolving a stream —
+   * signed URLs from the previous run are stale anyway. The first play()
+   * resolves lazily and seeks back to the stored position.
+   */
+  resumeTrack(track: Track, at: number) {
+    this.loadSeq += 1;
+    this.currentTrack = track;
+    this.expiresAt = null;
+    usePlayerStore.setState({
+      track,
+      status: "paused",
+      position: Math.max(0, at),
+      duration: (track.duration ?? 0) / 1000,
+      sourceKind: null,
+      snipped: false,
+      error: null,
+    });
+    void api.npSetMetadata(
+      trackTitle(track),
+      trackArtist(track),
+      trackArt(track, 500),
+      (track.duration ?? 0) / 1000,
+      track.permalink_url ?? null,
+    );
+  }
+
   /** Mark the current track unplayable, surface it, and let the queue react. */
   private giveUp(track: Track, reason: string) {
     this.consecutiveFailures += 1;
@@ -236,6 +263,21 @@ class AudioController {
   }
 
   async play() {
+    // First play after a session resume: nothing is loaded yet, so resolve a
+    // source now and seek to where the last session left off.
+    if (this.currentTrack && !this.audio.currentSrc) {
+      const resumeAt = usePlayerStore.getState().position;
+      usePlayerStore.setState({ status: "loading" });
+      try {
+        await this.setSource(false);
+        await this.waitForLoaded();
+        if (resumeAt > 0) this.audio.currentTime = resumeAt;
+      } catch (e) {
+        console.error("session-resume resolve failed", e);
+        usePlayerStore.setState({ status: "error", error: errMessage(e) });
+        return;
+      }
+    }
     // Preemptive refresh: a long pause can outlive the signed URL.
     if (
       this.currentTrack &&
@@ -273,11 +315,16 @@ class AudioController {
   }
 
   seek(seconds: number) {
-    if (Number.isFinite(seconds)) {
-      this.audio.currentTime = Math.max(0, seconds);
-      usePlayerStore.setState({ position: this.audio.currentTime });
-      void api.npSetPlayback(!this.audio.paused, this.audio.currentTime);
+    if (!Number.isFinite(seconds)) return;
+    // Nothing loaded yet (resumed session): just move the stored position;
+    // the lazy resolve on play() starts from there.
+    if (!this.audio.currentSrc) {
+      usePlayerStore.setState({ position: Math.max(0, seconds) });
+      return;
     }
+    this.audio.currentTime = Math.max(0, seconds);
+    usePlayerStore.setState({ position: this.audio.currentTime });
+    void api.npSetPlayback(!this.audio.paused, this.audio.currentTime);
   }
 
   setVolume(volume: number) {

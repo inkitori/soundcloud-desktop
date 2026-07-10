@@ -39,6 +39,7 @@ export function LikesPage() {
 
   return (
     <InfiniteTrackList
+      contextTo="/likes"
       tracks={tracks}
       hasNextPage={!!hasNextPage}
       isFetchingNextPage={isFetchingNextPage}

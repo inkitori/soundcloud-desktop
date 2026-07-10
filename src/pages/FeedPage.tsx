@@ -55,6 +55,7 @@ export function FeedPage() {
       feedPlayable.map((p) => p.track),
       idx,
       feedPlayable.map((p) => p.key),
+      "/",
     );
   };
 

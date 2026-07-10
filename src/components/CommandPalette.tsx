@@ -88,7 +88,7 @@ function CommandPaletteInner() {
   // Play a result track within the visible track results so next/prev flow.
   const playTrack = (track: Track) => {
     const idx = trackList.findIndex((t) => t.id === track.id);
-    playContext(trackList, Math.max(0, idx));
+    playContext(trackList, Math.max(0, idx), undefined, `/search?q=${encodeURIComponent(query)}`);
   };
 
   // Enter / click: act and close.

@@ -94,6 +94,7 @@ export function DownloadsPage() {
 
   return (
     <InfiniteTrackList
+      contextTo="/downloads"
       tracks={tracks}
       hasNextPage={false}
       isFetchingNextPage={false}
@@ -107,13 +108,13 @@ export function DownloadsPage() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
-              onClick={() => playContext(tracks, 0)}
+              onClick={() => playContext(tracks, 0, undefined, "/downloads")}
               className="flex items-center gap-2 rounded-full bg-orange-600 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-500"
             >
               <IconPlay size={16} /> Play all
             </button>
             <button
-              onClick={() => playContext(shuffle(tracks), 0)}
+              onClick={() => playContext(shuffle(tracks), 0, undefined, "/downloads")}
               className="flex items-center gap-2 rounded-full border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-300 hover:border-zinc-500"
             >
               <IconRadio size={14} /> Shuffle

@@ -18,6 +18,8 @@ interface InfiniteTrackListProps {
   /** Distinguishes lists that swap without navigation (e.g. search tabs) so
    * each keeps its own scroll-restore slot. */
   scrollScope?: string;
+  /** Route this list lives at; the player-bar title links back here. */
+  contextTo?: string;
 }
 
 /** Virtualized track list with bottom-sentinel infinite scrolling. */
@@ -29,6 +31,7 @@ export function InfiniteTrackList({
   fetchFailed = false,
   header,
   scrollScope,
+  contextTo,
 }: InfiniteTrackListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   useScrollRestore(parentRef, tracks.length > 0, scrollScope);
@@ -44,7 +47,7 @@ export function InfiniteTrackList({
 
   const [selected, setSelected] = useListSelection(
     tracks.length,
-    (i) => playContext(tracks, i),
+    (i) => playContext(tracks, i, undefined, contextTo),
     (i) => virtualizer.scrollToIndex(i),
   );
 
@@ -73,7 +76,7 @@ export function InfiniteTrackList({
               {track ? (
                 <TrackRow
                   track={track}
-                  onPlay={() => playContext(tracks, item.index)}
+                  onPlay={() => playContext(tracks, item.index, undefined, contextTo)}
                   selected={selected === item.index}
                   onSelect={() => setSelected(item.index)}
                 />

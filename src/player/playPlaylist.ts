@@ -36,5 +36,5 @@ export async function playPlaylist(playlist: Playlist, startTrackId?: number) {
   if (tracks.length === 0) return;
 
   const index = startTrackId != null ? tracks.findIndex((t) => t.id === startTrackId) : 0;
-  playContext(tracks, Math.max(0, index));
+  playContext(tracks, Math.max(0, index), undefined, `/playlist/${playlist.id}`);
 }

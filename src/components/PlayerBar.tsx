@@ -9,6 +9,7 @@ import {
   togglePanel,
   toggleRadio,
   toggleRepeat,
+  toggleShuffle,
   useQueueStore,
 } from "../player/queueStore";
 import {
@@ -21,6 +22,7 @@ import {
   IconQueue,
   IconRadio,
   IconRepeat,
+  IconShuffle,
   IconVolume,
   Spinner,
 } from "./Icons";
@@ -35,6 +37,8 @@ export function PlayerBar() {
   const sourceKind = usePlayerStore((s) => s.sourceKind);
   const repeat = useQueueStore((s) => s.repeat);
   const radio = useQueueStore((s) => s.radio);
+  const shuffle = useQueueStore((s) => s.shuffle);
+  const contextTo = useQueueStore((s) => s.contextTo);
   const panelOpen = useQueueStore((s) => s.panelOpen);
   const liked = useLikedStore((s) => (track ? s.ids.has(track.id) : false));
 
@@ -49,7 +53,19 @@ export function PlayerBar() {
               {art && <img src={art} alt="" className="h-full w-full object-cover" />}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium text-zinc-100">{trackTitle(track)}</div>
+              {contextTo ? (
+                <Link
+                  to={contextTo}
+                  className="block truncate text-sm font-medium text-zinc-100 hover:underline"
+                  title="Go to where this is playing from"
+                >
+                  {trackTitle(track)}
+                </Link>
+              ) : (
+                <div className="truncate text-sm font-medium text-zinc-100">
+                  {trackTitle(track)}
+                </div>
+              )}
               <div className="truncate text-xs text-zinc-400">
                 {track.user ? (
                   <Link to={`/artist/${track.user.id}`} className="hover:underline">
@@ -121,6 +137,13 @@ export function PlayerBar() {
       </div>
 
       <div className="flex items-center gap-1">
+        <button
+          onClick={toggleShuffle}
+          className={`rounded p-2 hover:bg-white/10 ${shuffle ? "text-orange-500" : "text-zinc-400"}`}
+          title={shuffle ? "Shuffle on" : "Shuffle off"}
+        >
+          <IconShuffle size={17} />
+        </button>
         <button
           onClick={toggleRepeat}
           className={`relative rounded p-2 hover:bg-white/10 ${

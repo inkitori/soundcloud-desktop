@@ -1,6 +1,7 @@
+import { useState } from "react";
 import { fmtDurationMs, trackArt, trackArtist, trackTitle } from "../lib/format";
 import { usePlayerStore } from "../player/playerStore";
-import { jumpTo, removeAt, togglePanel, useQueueStore } from "../player/queueStore";
+import { jumpTo, moveItem, removeAt, togglePanel, useQueueStore } from "../player/queueStore";
 import { IconX } from "./Icons";
 
 export function QueuePanel() {
@@ -9,6 +10,12 @@ export function QueuePanel() {
   const index = useQueueStore((s) => s.index);
   const radioLoading = useQueueStore((s) => s.radioLoading);
   const playingId = usePlayerStore((s) => s.track?.id);
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const endDrag = () => {
+    setDragFrom(null);
+    setDragOver(null);
+  };
 
   if (!open) return null;
 
@@ -29,9 +36,27 @@ export function QueuePanel() {
           return (
             <div
               key={entry.key}
-              className={`group flex items-center gap-2 rounded px-2 py-1.5 hover:bg-white/5 ${
+              draggable
+              onDragStart={() => setDragFrom(i)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(i);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (dragFrom != null) moveItem(dragFrom, i);
+                endDrag();
+              }}
+              onDragEnd={endDrag}
+              className={`group flex cursor-grab items-center gap-2 rounded px-2 py-1.5 hover:bg-white/5 ${
                 isCurrent ? "bg-white/5" : ""
-              } ${i < index ? "opacity-50" : ""}`}
+              } ${i < index ? "opacity-50" : ""} ${
+                dragOver === i && dragFrom !== i
+                  ? dragFrom != null && dragFrom < i
+                    ? "border-b border-orange-500"
+                    : "border-t border-orange-500"
+                  : ""
+              } ${dragFrom === i ? "opacity-30" : ""}`}
             >
               <button
                 onClick={() => jumpTo(i)}
