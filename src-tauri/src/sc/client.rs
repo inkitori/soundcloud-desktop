@@ -12,10 +12,27 @@ use super::{client_id, webwrite};
 use crate::error::{AppError, Result};
 
 pub const API_BASE: &str = "https://api-v2.soundcloud.com";
-/// Global minimum gap between api-v2 requests (~75 req/min ceiling).
-const MIN_GAP: Duration = Duration::from_millis(800);
+/// Burst-smoothing gap for user-initiated reads (page loads, pagination).
+/// Interactive traffic is inherently user-paced, so this only spaces the
+/// few requests a single page fires; 429s are handled with backoff anyway.
+const MIN_GAP: Duration = Duration::from_millis(150);
+/// Wider gap for background scrapes (id-set drains). Paced on their own
+/// clock so a queued sync never delays an interactive page load.
+const BG_MIN_GAP: Duration = Duration::from_millis(800);
 const UA: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15";
 const STORE_FILE: &str = "settings.json";
+
+/// Request pacing lane. Interactive and background requests are throttled
+/// independently, so bulk syncs never queue ahead of page loads.
+#[derive(Clone, Copy)]
+pub enum Lane {
+    /// No pacing — playback-critical path (transcoding resolve).
+    Fast,
+    /// User-initiated reads; small gap to smooth bursts.
+    Interactive,
+    /// Bulk scrapes (id-set drains); wide gap, own clock.
+    Background,
+}
 
 pub struct ScClient {
     pub http: reqwest::Client,
@@ -24,6 +41,7 @@ pub struct ScClient {
     token: RwLock<Option<String>>,
     me_id: RwLock<Option<u64>>,
     last_request: Mutex<Option<Instant>>,
+    last_bg_request: Mutex<Option<Instant>>,
     /// DataDome clearance cookie copied from the browser. SoundCloud's bot
     /// protection challenges write requests (likes, playlist edits) that lack
     /// it; reads mostly pass without. Rotated from Set-Cookie on success.
@@ -62,6 +80,7 @@ impl ScClient {
             token: RwLock::new(persisted_token),
             me_id: RwLock::new(None),
             last_request: Mutex::new(None),
+            last_bg_request: Mutex::new(None),
             datadome: RwLock::new(persisted_datadome),
         })
     }
@@ -159,12 +178,17 @@ impl ScClient {
         *self.me_id.write().await = Some(id);
     }
 
-    async fn rate_limit(&self) {
-        let mut last = self.last_request.lock().await;
+    async fn rate_limit(&self, lane: Lane) {
+        let (mutex, gap) = match lane {
+            Lane::Fast => return,
+            Lane::Interactive => (&self.last_request, MIN_GAP),
+            Lane::Background => (&self.last_bg_request, BG_MIN_GAP),
+        };
+        let mut last = mutex.lock().await;
         if let Some(prev) = *last {
             let elapsed = prev.elapsed();
-            if elapsed < MIN_GAP {
-                tokio::time::sleep(MIN_GAP - elapsed).await;
+            if elapsed < gap {
+                tokio::time::sleep(gap - elapsed).await;
             }
         }
         *last = Some(Instant::now());
@@ -194,11 +218,12 @@ impl ScClient {
         query: &[(&str, String)],
         body: Option<Value>,
     ) -> Result<Value> {
-        self.request_value_inner(method, url, query, body, true).await
+        self.request_value_inner(method, url, query, body, Lane::Interactive)
+            .await
     }
 
-    /// Same as `request_value` but skips the global rate limiter. Used on the
-    /// playback-critical path (transcoding resolve) where the ~800ms gap would
+    /// Same as `request_value` but skips pacing entirely. Used on the
+    /// playback-critical path (transcoding resolve) where any gap would
     /// add audible latency to every click; these are single user-initiated
     /// calls, not scrape loops.
     pub async fn request_value_fast(
@@ -208,7 +233,8 @@ impl ScClient {
         query: &[(&str, String)],
         body: Option<Value>,
     ) -> Result<Value> {
-        self.request_value_inner(method, url, query, body, false).await
+        self.request_value_inner(method, url, query, body, Lane::Fast)
+            .await
     }
 
     async fn request_value_inner(
@@ -217,7 +243,7 @@ impl ScClient {
         url: &str,
         query: &[(&str, String)],
         body: Option<Value>,
-        rate_limited: bool,
+        lane: Lane,
     ) -> Result<Value> {
         let full = if url.starts_with("http") {
             url.to_string()
@@ -229,9 +255,7 @@ impl ScClient {
         let mut backoff_429 = [1u64, 3].into_iter();
 
         loop {
-            if rate_limited {
-                self.rate_limit().await;
-            }
+            self.rate_limit(lane).await;
             let cid = self.ensure_client_id().await?;
 
             let mut req = self.http.request(method.clone(), &full);
@@ -387,9 +411,16 @@ impl ScClient {
         self.request_value(Method::GET, url, query, None).await
     }
 
-    /// GET without the global rate limiter (playback-critical path).
+    /// GET without any pacing (playback-critical path).
     pub async fn get_value_fast(&self, url: &str, query: &[(&str, String)]) -> Result<Value> {
         self.request_value_fast(Method::GET, url, query, None).await
+    }
+
+    /// GET on the background lane (bulk syncs like the social id-set drain),
+    /// paced independently so it never delays interactive page loads.
+    pub async fn get_value_bg(&self, url: &str, query: &[(&str, String)]) -> Result<Value> {
+        self.request_value_inner(Method::GET, url, query, None, Lane::Background)
+            .await
     }
 
     pub async fn get_json<T: DeserializeOwned>(

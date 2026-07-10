@@ -218,13 +218,15 @@ impl ScClient {
     }
 
     /// Drain an id-set endpoint. Pages defensively; tolerant of shape drift.
+    /// Runs on the background lane so the drain never queues ahead of a page
+    /// load the user is waiting on.
     async fn ep_ids(&self, path: &str) -> Result<Vec<u64>> {
         let mut out = Vec::new();
         let mut next: Option<String> = None;
         for _ in 0..10 {
             let v = match &next {
-                Some(href) => self.get_value(href, &[]).await?,
-                None => self.get_value(path, &lp(5000)).await?,
+                Some(href) => self.get_value_bg(href, &[]).await?,
+                None => self.get_value_bg(path, &lp(5000)).await?,
             };
             let items = v
                 .get("collection")

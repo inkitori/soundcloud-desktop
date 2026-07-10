@@ -48,12 +48,11 @@ export default function App() {
     void checkForUpdates({ silent: true });
   }, []);
 
-  // Mirror like/repost/follow ids once signed in; delayed so the first
-  // screen's requests win the rate limiter.
+  // Mirror like/repost/follow ids once signed in. The backend runs this on
+  // its background request lane, so it can't delay page loads.
   useEffect(() => {
     if (!loggedIn) return;
-    const t = setTimeout(() => void loadSocialIds(), 3500);
-    return () => clearTimeout(t);
+    void loadSocialIds();
   }, [loggedIn]);
 
   if (loading) {
