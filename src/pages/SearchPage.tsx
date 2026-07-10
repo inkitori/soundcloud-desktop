@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useSearchPlaylists, useSearchTracks, useSearchUsers } from "../api/queries";
 import { IconSearch, Spinner } from "../components/Icons";
 import { InfiniteTrackList } from "../components/InfiniteTrackList";
 import { PlaylistRow } from "../components/PlaylistRow";
 import { UserRow } from "../components/UserRow";
+import { useScrollRestore } from "../lib/useScrollRestore";
 
 type Tab = "tracks" | "artists" | "playlists";
+const TABS: Tab[] = ["tracks", "artists", "playlists"];
 
 export function SearchPage() {
   const [params] = useSearchParams();
@@ -14,7 +16,15 @@ export function SearchPage() {
     () => params.get("q") ?? sessionStorage.getItem("search-q") ?? "",
   );
   const [query, setQuery] = useState(input);
-  const [tab, setTab] = useState<Tab>("tracks");
+  // Like the query, the active tab survives leaving and coming back.
+  const [tab, setTabState] = useState<Tab>(() => {
+    const saved = sessionStorage.getItem("search-tab") as Tab | null;
+    return saved && TABS.includes(saved) ? saved : "tracks";
+  });
+  const setTab = (t: Tab) => {
+    setTabState(t);
+    sessionStorage.setItem("search-tab", t);
+  };
 
   // Deep-link from the ⌘K overlay: when the URL query changes (incl. while this
   // page is already mounted), adopt it.
@@ -48,7 +58,7 @@ export function SearchPage() {
           />
         </div>
         <div className="flex gap-1 py-3">
-          {(["tracks", "artists", "playlists"] as Tab[]).map((t) => (
+          {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -92,6 +102,7 @@ function TrackResults({ query }: { query: string }) {
       isFetchingNextPage={isFetchingNextPage}
       fetchNextPage={() => void fetchNextPage()}
       fetchFailed={isFetchNextPageError}
+      scrollScope="search-tracks"
     />
   );
 }
@@ -100,9 +111,11 @@ function ArtistResults({ query }: { query: string }) {
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } =
     useSearchUsers(query);
   const users = useMemo(() => data?.pages.flatMap((p) => p.collection) ?? [], [data]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useScrollRestore(scrollRef, users.length > 0, "search-artists");
   if (isLoading) return <Loading />;
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 pb-4">
       <div className="space-y-1">
         {users.map((u) => (
           <UserRow key={u.id} user={u} />
@@ -125,9 +138,11 @@ function PlaylistResults({ query }: { query: string }) {
   const { data, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } =
     useSearchPlaylists(query);
   const playlists = useMemo(() => data?.pages.flatMap((p) => p.collection) ?? [], [data]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useScrollRestore(scrollRef, playlists.length > 0, "search-playlists");
   if (isLoading) return <Loading />;
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 pb-4">
       <div className="space-y-2">
         {playlists.map((p) => (
           <PlaylistRow key={p.id} playlist={p} />

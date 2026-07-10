@@ -273,9 +273,41 @@ pub async fn resolve_url(sc: Sc<'_>, url: String) -> Result<ResolvedEntity> {
     sc.ep_resolve(&url).await
 }
 
+/// Waveform for the scrubber. Downloaded tracks read the JSON cached at
+/// download time (works offline); otherwise it comes from the CDN, and a
+/// copy is persisted when the track is a cached download so older downloads
+/// self-heal on first online play.
 #[tauri::command]
-pub async fn get_waveform(sc: Sc<'_>, url: String) -> Result<Waveform> {
-    sc.ep_waveform(&url).await
+pub async fn get_waveform(
+    sc: Sc<'_>,
+    cache: Cache<'_>,
+    url: Option<String>,
+    track_id: Option<u64>,
+) -> Result<Waveform> {
+    if let Some(id) = track_id {
+        if let Ok(bytes) = std::fs::read(cache.wave_path(id)) {
+            if let Ok(wave) = serde_json::from_slice::<Waveform>(&bytes) {
+                return Ok(wave);
+            }
+        }
+    }
+    let url = match url {
+        Some(u) => u,
+        // Cached rows don't carry waveform_url; look it up from the track.
+        None => {
+            let id = track_id.ok_or(AppError::NotFound)?;
+            sc.ep_track(id).await?.waveform_url.ok_or(AppError::NotFound)?
+        }
+    };
+    let wave = sc.ep_waveform(&url).await?;
+    if let Some(id) = track_id {
+        if cache.lookup_done(id).is_some() {
+            if let Ok(bytes) = serde_json::to_vec(&wave) {
+                let _ = std::fs::write(cache.wave_path(id), bytes);
+            }
+        }
+    }
+    Ok(wave)
 }
 
 // ---- playback ----
@@ -430,9 +462,10 @@ pub async fn list_downloads(cache: Cache<'_>) -> Result<Vec<CachedRow>> {
     cache.list()
 }
 
-/// One-time repair for downloads made before artist_id / local-art existed:
-/// fetch the tracks (batched) to fill in the artist id (so artist links work)
-/// and cache any missing cover art (so OS Now-Playing art works offline).
+/// One-time repair for downloads made before artist_id / local-art /
+/// local-waveform existed: fetch the tracks (batched) to fill in the artist
+/// id (so artist links work) and cache any missing cover art and waveform
+/// JSON (so OS Now-Playing art and the scrubber work offline).
 /// Returns the number of rows touched; safe to call repeatedly (idempotent).
 #[tauri::command]
 pub async fn backfill_downloads(sc: Sc<'_>, cache: Cache<'_>) -> Result<u64> {
@@ -450,6 +483,11 @@ pub async fn backfill_downloads(sc: Sc<'_>, cache: Cache<'_>) -> Result<u64> {
             if !cache.art_path(t.id).is_file() {
                 if let Some(url) = t.artwork_url.as_deref() {
                     let _ = downloader::cache_artwork(&sc, &cache, t.id, url).await;
+                }
+            }
+            if !cache.wave_path(t.id).is_file() {
+                if let Some(url) = t.waveform_url.as_deref() {
+                    let _ = downloader::cache_waveform(&sc, &cache, t.id, url).await;
                 }
             }
             touched += 1;

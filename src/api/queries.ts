@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { markLiked } from "../lib/stores";
+import { markLiked, useDownloadStore } from "../lib/stores";
 import { api } from "./commands";
-import type { Page } from "./types";
+import type { Page, Track } from "./types";
 
 function useInfinite<T>(
   key: unknown[],
@@ -10,6 +10,7 @@ function useInfinite<T>(
   // When the key changes often (e.g. search-as-you-type), keep the previous
   // key's data visible while the next request loads instead of flashing empty.
   keepPrevious = false,
+  staleTime = 60_000,
 ) {
   return useInfiniteQuery({
     queryKey: key,
@@ -20,14 +21,17 @@ function useInfinite<T>(
     getNextPageParam: (last) =>
       last.collection.length > 0 ? (last.next_href ?? undefined) : undefined,
     enabled,
-    staleTime: 60_000,
+    staleTime,
     retry: 1,
     placeholderData: keepPrevious ? keepPreviousData : undefined,
   });
 }
 
 export function useFeed() {
-  return useInfinite(["feed"], (next) => api.getStream(next));
+  // A long staleTime keeps back-and-forth navigation from refetching (and
+  // visibly reshuffling) the feed every visit; writes invalidate it, and
+  // clicking Home in the sidebar while on it forces a refresh.
+  return useInfinite(["feed"], (next) => api.getStream(next), true, false, 5 * 60_000);
 }
 
 export function useMyLikes() {
@@ -130,11 +134,14 @@ export function useSearchAll(q: string) {
   return useInfinite(["search", "all", q], (next) => api.searchAll(q, next), q.length > 1, true);
 }
 
-export function useWaveform(url: string | null | undefined) {
+export function useWaveform(track: Pick<Track, "id" | "waveform_url"> | null | undefined) {
+  // Downloaded tracks have no waveform_url on their row, but the backend can
+  // serve (or fetch-and-cache) their waveform by id.
+  const cached = useDownloadStore((s) => !!track && track.id in s.cached);
   return useQuery({
-    queryKey: ["waveform", url],
-    queryFn: () => api.getWaveform(url!),
-    enabled: !!url,
+    queryKey: ["waveform", track?.id, track?.waveform_url ?? null],
+    queryFn: () => api.getWaveform(track!.waveform_url ?? null, track!.id),
+    enabled: !!track && (!!track.waveform_url || cached),
     staleTime: Infinity,
     retry: 1,
   });

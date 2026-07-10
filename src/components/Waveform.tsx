@@ -16,7 +16,7 @@ export function Waveform() {
   const track = usePlayerStore((s) => s.track);
   const position = usePlayerStore((s) => s.position);
   const duration = usePlayerStore((s) => s.duration);
-  const { data: waveform } = useWaveform(track?.waveform_url);
+  const { data: waveform } = useWaveform(track);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);

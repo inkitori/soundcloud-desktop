@@ -22,6 +22,7 @@ export function Modal({ title, onClose, children, actions, widthClass = "w-[26re
 
   return (
     <div
+      role="dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();

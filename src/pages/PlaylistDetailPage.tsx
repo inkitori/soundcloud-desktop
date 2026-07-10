@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { usePlaylist, useTracksByIds } from "../api/queries";
 import {
   IconDownload,
@@ -78,8 +78,18 @@ export function PlaylistDetailPage() {
               {playlist.title ?? "Untitled"}
             </h1>
             <div className="text-sm text-zinc-400">
-              {playlist.user?.username} · {playlist.track_count ?? tracks.length} tracks ·{" "}
-              {fmtDurationMs(playlist.duration)}
+              {playlist.user && (
+                <>
+                  <Link
+                    to={`/artist/${playlist.user.id}`}
+                    className="hover:text-zinc-200 hover:underline"
+                  >
+                    {playlist.user.username}
+                  </Link>
+                  {" · "}
+                </>
+              )}
+              {playlist.track_count ?? tracks.length} tracks · {fmtDurationMs(playlist.duration)}
               {stillHydrating && <span className="ml-2 text-zinc-500">loading tracks…</span>}
             </div>
             <div className="mt-3 flex items-center gap-2">

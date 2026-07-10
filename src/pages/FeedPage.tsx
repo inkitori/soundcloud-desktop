@@ -6,6 +6,8 @@ import { IconDownload, IconRadio, Spinner } from "../components/Icons";
 import { PlaylistRow } from "../components/PlaylistRow";
 import { TrackRow } from "../components/TrackRow";
 import { useNetworkStore } from "../lib/stores";
+import { useListSelection } from "../lib/useListSelection";
+import { useScrollRestore } from "../lib/useScrollRestore";
 import { usePlayerStore } from "../player/playerStore";
 import { playContext } from "../player/queueStore";
 
@@ -20,6 +22,7 @@ export function FeedPage() {
     error,
   } = useFeed();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
   const online = useNetworkStore((s) => s.online);
 
   // /stream pages can overlap at the boundary, so the same item (same entity
@@ -55,6 +58,24 @@ export function FeedPage() {
     );
   };
 
+  // Keyboard selection walks the playable (track) rows, skipping playlists.
+  const rowRefs = useRef(new Map<string, HTMLDivElement>());
+  const [selected, setSelected] = useListSelection(
+    feedPlayable.length,
+    (i) => playFromKey(feedPlayable[i].key),
+    (i) => {
+      const key = feedPlayable[i]?.key;
+      if (key) rowRefs.current.get(key)?.scrollIntoView({ block: "nearest" });
+    },
+  );
+  const selectedKey = selected != null ? (feedPlayable[selected]?.key ?? null) : null;
+  const selectKey = (key: string) => {
+    const idx = feedPlayable.findIndex((p) => p.key === key);
+    if (idx >= 0) setSelected(idx);
+  };
+
+  useScrollRestore(scrollRef, items.length > 0);
+
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -78,16 +99,25 @@ export function FeedPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 pb-4">
       <h1 className="px-2 py-4 text-lg font-bold text-zinc-100">Your feed</h1>
       <div className="space-y-1">
         {items.map(({ item, key }) => (
-          <FeedRow
+          <div
             key={key}
-            item={item}
-            isCurrent={currentKey === key}
-            onPlay={() => playFromKey(key)}
-          />
+            ref={(el) => {
+              if (el) rowRefs.current.set(key, el);
+              else rowRefs.current.delete(key);
+            }}
+          >
+            <FeedRow
+              item={item}
+              isCurrent={currentKey === key}
+              onPlay={() => playFromKey(key)}
+              selected={selectedKey === key}
+              onSelect={() => selectKey(key)}
+            />
+          </div>
         ))}
       </div>
       <div ref={sentinelRef} className="flex justify-center py-6 text-zinc-500">
@@ -110,10 +140,14 @@ function FeedRow({
   item,
   isCurrent,
   onPlay,
+  selected,
+  onSelect,
 }: {
   item: FeedItem;
   isCurrent: boolean;
   onPlay: () => void;
+  selected: boolean;
+  onSelect: () => void;
 }) {
   const isRepost = item.type.includes("repost");
   const attribution = isRepost && item.user?.username && (
@@ -127,7 +161,13 @@ function FeedRow({
     return (
       <div>
         {attribution}
-        <TrackRow track={item.track} isCurrent={isCurrent} onPlay={onPlay} />
+        <TrackRow
+          track={item.track}
+          isCurrent={isCurrent}
+          onPlay={onPlay}
+          selected={selected}
+          onSelect={onSelect}
+        />
       </div>
     );
   }

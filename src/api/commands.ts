@@ -64,7 +64,8 @@ export const api = {
   searchAll: (q: string, nextHref?: string) =>
     invoke<Page<SearchItem>>("search_all", { q, nextHref: nextHref ?? null }),
   resolveUrl: (url: string) => invoke<ResolvedEntity>("resolve_url", { url }),
-  getWaveform: (url: string) => invoke<Waveform>("get_waveform", { url }),
+  getWaveform: (url: string | null, trackId?: number) =>
+    invoke<Waveform>("get_waveform", { url, trackId: trackId ?? null }),
 
   // playback
   getPlaybackSource: (track: Track, forceRefresh: boolean) =>

@@ -176,6 +176,12 @@ async fn download_inner(
             tracing::warn!("artwork cache failed for {track_id}: {e}");
         }
     }
+    // Same for the waveform JSON, so the scrubber has bars offline.
+    if let Some(url) = track.waveform_url.as_deref() {
+        if let Err(e) = cache_waveform(sc, cache, track_id, url).await {
+            tracing::warn!("waveform cache failed for {track_id}: {e}");
+        }
+    }
 
     let bytes = tokio::fs::metadata(&final_path).await?.len();
     let now = SystemTime::now()
@@ -212,6 +218,19 @@ pub(crate) async fn cache_artwork(sc: &ScClient, cache: &CacheDb, track_id: u64,
     let bytes = resp.bytes().await?;
     write_file(&cache.art_path(track_id), &bytes).await?;
     Ok(())
+}
+
+/// Fetch a track's waveform JSON into the cache (as `waves/{track_id}.json`).
+pub(crate) async fn cache_waveform(
+    sc: &ScClient,
+    cache: &CacheDb,
+    track_id: u64,
+    waveform_url: &str,
+) -> Result<()> {
+    let wave = sc.ep_waveform(waveform_url).await?;
+    let bytes = serde_json::to_vec(&wave)
+        .map_err(|e| AppError::Other(format!("waveform encode: {e}")))?;
+    write_file(&cache.wave_path(track_id), &bytes).await
 }
 
 async fn write_file(path: &Path, bytes: &[u8]) -> Result<()> {

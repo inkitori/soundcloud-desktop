@@ -22,6 +22,7 @@ import {
 import { showToast } from "../lib/toast";
 import { usePlayerStore } from "../player/playerStore";
 import { addLast } from "../player/queueStore";
+import { openTrackMenu } from "./TrackContextMenu";
 import {
   IconCheck,
   IconDownload,
@@ -44,9 +45,18 @@ interface TrackRowProps {
    * everywhere else it falls back to matching the playing track's id.
    */
   isCurrent?: boolean;
+  /** Row is the list's keyboard/click selection (see useListSelection). */
+  selected?: boolean;
+  onSelect?: () => void;
 }
 
-export function TrackRow({ track, onPlay, isCurrent: isCurrentOverride }: TrackRowProps) {
+export function TrackRow({
+  track,
+  onPlay,
+  isCurrent: isCurrentOverride,
+  selected = false,
+  onSelect,
+}: TrackRowProps) {
   const idCurrent = usePlayerStore((s) => s.track?.id === track.id);
   const playing = usePlayerStore((s) => s.status === "playing");
   const isCurrent = isCurrentOverride ?? idCurrent;
@@ -62,9 +72,15 @@ export function TrackRow({ track, onPlay, isCurrent: isCurrentOverride }: TrackR
   return (
     <div
       className={`group flex h-14 items-center gap-3 rounded-md px-2 hover:bg-white/5 ${
-        isCurrent ? "bg-white/5" : ""
+        selected ? "bg-white/10" : isCurrent ? "bg-white/5" : ""
       } ${blocked ? "opacity-50" : ""}`}
+      onClick={onSelect}
       onDoubleClick={blocked ? undefined : onPlay}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onSelect?.();
+        openTrackMenu(e, track, blocked ? undefined : onPlay);
+      }}
     >
       <button
         onClick={blocked ? undefined : onPlay}

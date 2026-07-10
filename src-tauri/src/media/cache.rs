@@ -44,6 +44,9 @@ pub struct CacheDb {
     /// `audio/` so the existing `$APPDATA/audio/**` asset-protocol scope serves
     /// it to the webview without extra config.
     pub art_dir: PathBuf,
+    /// Cached waveform JSON, one `{track_id}.json` per download, so the
+    /// scrubber has bars offline. Served via command, no asset scope needed.
+    pub waves_dir: PathBuf,
 }
 
 fn now_secs() -> i64 {
@@ -58,9 +61,11 @@ impl CacheDb {
         let audio_dir = data_dir.join("audio");
         let tmp_dir = data_dir.join("tmp");
         let art_dir = audio_dir.join("art");
+        let waves_dir = data_dir.join("waves");
         std::fs::create_dir_all(&audio_dir)?;
         std::fs::create_dir_all(&tmp_dir)?;
         std::fs::create_dir_all(&art_dir)?;
+        std::fs::create_dir_all(&waves_dir)?;
 
         let conn = Connection::open(data_dir.join("cache.db"))?;
         conn.execute_batch(
@@ -99,12 +104,18 @@ impl CacheDb {
             audio_dir,
             tmp_dir,
             art_dir,
+            waves_dir,
         })
     }
 
     /// Where this track's cached cover art lives (whether or not it exists yet).
     pub fn art_path(&self, track_id: u64) -> PathBuf {
         self.art_dir.join(format!("{track_id}.jpg"))
+    }
+
+    /// Where this track's cached waveform JSON lives (whether or not it exists yet).
+    pub fn wave_path(&self, track_id: u64) -> PathBuf {
+        self.waves_dir.join(format!("{track_id}.json"))
     }
 
     /// Path of a completed, still-present cached file; purges stale rows.
@@ -211,6 +222,7 @@ impl CacheDb {
             let _ = std::fs::remove_file(self.audio_dir.join(name));
         }
         let _ = std::fs::remove_file(self.art_path(track_id));
+        let _ = std::fs::remove_file(self.wave_path(track_id));
         Ok(())
     }
 
@@ -223,14 +235,18 @@ impl CacheDb {
         Ok(())
     }
 
-    /// Downloads made before artist_id / local-art existed: their rows still
-    /// need a one-time backfill so the artist links work and OS Now-Playing art
-    /// is available offline.
+    /// Downloads made before artist_id / local-art / local-waveform existed:
+    /// their rows still need a one-time backfill so the artist links work and
+    /// OS Now-Playing art + the scrubber waveform are available offline.
     pub fn ids_needing_backfill(&self) -> Result<Vec<u64>> {
         Ok(self
             .list()?
             .into_iter()
-            .filter(|r| r.artist_id.is_none() || r.art_path.is_none())
+            .filter(|r| {
+                r.artist_id.is_none()
+                    || r.art_path.is_none()
+                    || !self.wave_path(r.track_id).is_file()
+            })
             .map(|r| r.track_id)
             .collect())
     }

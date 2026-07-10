@@ -1,6 +1,8 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef } from "react";
 import type { Track } from "../api/types";
+import { useListSelection } from "../lib/useListSelection";
+import { useScrollRestore } from "../lib/useScrollRestore";
 import { playContext } from "../player/queueStore";
 import { Spinner } from "./Icons";
 import { TrackRow } from "./TrackRow";
@@ -13,6 +15,9 @@ interface InfiniteTrackListProps {
   /** A next-page fetch failed; stop auto-fetching or the effect hot-loops. */
   fetchFailed?: boolean;
   header?: React.ReactNode;
+  /** Distinguishes lists that swap without navigation (e.g. search tabs) so
+   * each keeps its own scroll-restore slot. */
+  scrollScope?: string;
 }
 
 /** Virtualized track list with bottom-sentinel infinite scrolling. */
@@ -23,8 +28,10 @@ export function InfiniteTrackList({
   fetchNextPage,
   fetchFailed = false,
   header,
+  scrollScope,
 }: InfiniteTrackListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
+  useScrollRestore(parentRef, tracks.length > 0, scrollScope);
 
   const more = hasNextPage && !fetchFailed;
   const count = tracks.length + (more ? 1 : 0);
@@ -34,6 +41,12 @@ export function InfiniteTrackList({
     estimateSize: () => 56,
     overscan: 12,
   });
+
+  const [selected, setSelected] = useListSelection(
+    tracks.length,
+    (i) => playContext(tracks, i),
+    (i) => virtualizer.scrollToIndex(i),
+  );
 
   const items = virtualizer.getVirtualItems();
   const lastItem = items[items.length - 1];
@@ -58,7 +71,12 @@ export function InfiniteTrackList({
               style={{ height: item.size, transform: `translateY(${item.start}px)` }}
             >
               {track ? (
-                <TrackRow track={track} onPlay={() => playContext(tracks, item.index)} />
+                <TrackRow
+                  track={track}
+                  onPlay={() => playContext(tracks, item.index)}
+                  selected={selected === item.index}
+                  onSelect={() => setSelected(item.index)}
+                />
               ) : (
                 <div className="flex h-14 items-center justify-center text-zinc-500">
                   <Spinner />

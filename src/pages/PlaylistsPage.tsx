@@ -3,6 +3,7 @@ import { useMyPlaylists } from "../api/queries";
 import { IconPlus, Spinner } from "../components/Icons";
 import { PlaylistCard } from "../components/PlaylistCard";
 import { openCreatePlaylist } from "../lib/modals";
+import { useScrollRestore } from "../lib/useScrollRestore";
 
 export function PlaylistsPage() {
   const {
@@ -15,8 +16,10 @@ export function PlaylistsPage() {
     error,
   } = useMyPlaylists();
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
   const playlists = useMemo(() => data?.pages.flatMap((p) => p.collection) ?? [], [data]);
+  useScrollRestore(scrollRef, playlists.length > 0);
 
   useEffect(() => {
     const el = sentinelRef.current;
@@ -46,7 +49,7 @@ export function PlaylistsPage() {
   }
 
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 pb-4">
       <div className="flex items-center justify-between px-2 py-4">
         <h1 className="text-lg font-bold text-zinc-100">Playlists & albums</h1>
         <button

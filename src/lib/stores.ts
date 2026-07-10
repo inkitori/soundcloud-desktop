@@ -1,6 +1,7 @@
+import type { InfiniteData } from "@tanstack/react-query";
 import { create } from "zustand";
 import { api } from "../api/commands";
-import type { AppError, AuthStatus, CachedRow, Track } from "../api/types";
+import type { AppError, AuthStatus, CachedRow, FeedItem, Page, Track } from "../api/types";
 import { openAuthModal } from "./modals";
 import { queryClient } from "./queryClient";
 import { showToast } from "./toast";
@@ -72,6 +73,36 @@ function staleAfterWrite(...keys: unknown[][]) {
 
 function myId(): number | undefined {
   return useAuthStore.getState().status?.me?.id;
+}
+
+/**
+ * Unreposting must prune the entry from cached feed/repost pages directly:
+ * a refetch would leave a ghost row in the meantime, and SoundCloud's stream
+ * index lags unreposts anyway, so the refetched page may *still* contain it
+ * (which is also why the caller skips invalidation — a refetch could
+ * resurrect the row we just removed).
+ */
+function pruneMyRepostFromCaches(kind: "track" | "playlist", id: number) {
+  const me = myId();
+  const prune = (queryKey: unknown[], mineOnly: boolean) =>
+    queryClient.setQueriesData<InfiniteData<Page<FeedItem>>>({ queryKey }, (data) => {
+      if (!data) return data;
+      return {
+        ...data,
+        pages: data.pages.map((page) => ({
+          ...page,
+          collection: page.collection.filter((item) => {
+            if (!item.type.includes("repost")) return true;
+            const entity = kind === "track" ? item.track : item.playlist;
+            if (entity?.id !== id) return true;
+            // In the feed, keep the same entity reposted by *other* people.
+            return mineOnly && item.user?.id !== me;
+          }),
+        })),
+      };
+    });
+  prune(["feed"], true);
+  if (me != null) prune(["user-reposts", me], false);
 }
 
 // ---- likes (local mirror for instant heart toggles) ----
@@ -233,9 +264,11 @@ export async function toggleRepostTrack(trackId: number) {
     "repost",
   );
   if (!ok) return;
-  staleAfterWrite(["user-reposts", myId()], ["feed"]);
   if (useSocialStore.getState().repostedTracks.has(trackId)) {
+    staleAfterWrite(["user-reposts", myId()], ["feed"]);
     showToast("Reposted to your followers");
+  } else {
+    pruneMyRepostFromCaches("track", trackId);
   }
 }
 
@@ -248,9 +281,11 @@ export async function toggleRepostPlaylist(playlistId: number) {
     "repost",
   );
   if (!ok) return;
-  staleAfterWrite(["user-reposts", myId()], ["feed"]);
   if (useSocialStore.getState().repostedPlaylists.has(playlistId)) {
+    staleAfterWrite(["user-reposts", myId()], ["feed"]);
     showToast("Reposted to your followers");
+  } else {
+    pruneMyRepostFromCaches("playlist", playlistId);
   }
 }
 

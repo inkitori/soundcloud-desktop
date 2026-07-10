@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   useUser,
@@ -20,6 +20,7 @@ import { UserRow } from "../components/UserRow";
 import { artwork, fmtCount } from "../lib/format";
 import { useSessionLikes } from "../lib/sessionLikes";
 import { toggleFollowUser, useAuthStore, useSocialStore } from "../lib/stores";
+import { useScrollRestore } from "../lib/useScrollRestore";
 import { playContext } from "../player/queueStore";
 
 const TABS = ["popular", "tracks", "albums", "playlists", "reposts", "likes"] as const;
@@ -187,6 +188,8 @@ function UserRepostsTab({ userId }: { userId: number }) {
   const q = useUserReposts(userId);
   const items = useMemo(() => q.data?.pages.flatMap((p) => p.collection) ?? [], [q.data]);
   const tracks = useMemo(() => items.flatMap((i) => (i.track ? [i.track] : [])), [items]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useScrollRestore(scrollRef, items.length > 0);
   if (q.isLoading) return <Loading />;
   if (items.length === 0) {
     return (
@@ -196,7 +199,7 @@ function UserRepostsTab({ userId }: { userId: number }) {
     );
   }
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 pb-4">
       <div className="space-y-1">
         {items.map((item, i) =>
           item.track ? (
@@ -271,6 +274,8 @@ function UserPlaylistsTab({ userId, kind }: { userId: number; kind: "albums" | "
   const playlists = useUserPlaylists(userId, kind === "playlists");
   const q = kind === "albums" ? albums : playlists;
   const items = useMemo(() => q.data?.pages.flatMap((p) => p.collection) ?? [], [q.data]);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useScrollRestore(scrollRef, items.length > 0);
   if (q.isLoading) return <Loading />;
   if (items.length === 0) {
     return (
@@ -280,7 +285,7 @@ function UserPlaylistsTab({ userId, kind }: { userId: number; kind: "albums" | "
     );
   }
   return (
-    <div className="h-full overflow-y-auto px-4 pb-4">
+    <div ref={scrollRef} className="h-full overflow-y-auto px-4 pb-4">
       <div className="space-y-2">
         {items.map((p) => (
           <PlaylistRow key={p.id} playlist={p} />

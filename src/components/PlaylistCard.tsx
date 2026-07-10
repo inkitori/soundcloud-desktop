@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { Playlist } from "../api/types";
 import { artwork } from "../lib/format";
 import { playPlaylist } from "../player/playPlaylist";
@@ -7,6 +7,7 @@ import { IconList, IconPlay, Spinner } from "./Icons";
 
 export function PlaylistCard({ playlist }: { playlist: Playlist }) {
   const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
   const art = artwork(
     playlist.artwork_url ?? playlist.tracks[0]?.artwork_url ?? playlist.user?.avatar_url,
     200,
@@ -43,7 +44,24 @@ export function PlaylistCard({ playlist }: { playlist: Playlist }) {
         {playlist.title ?? "Untitled"}
       </div>
       <div className="truncate text-xs text-zinc-500">
-        {playlist.user?.username} · {playlist.track_count ?? playlist.tracks.length} tracks
+        {playlist.user ? (
+          // The whole card is a Link, so the artist is a nested click target
+          // (a real nested <a> would be invalid HTML).
+          <span
+            role="link"
+            tabIndex={0}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(`/artist/${playlist.user!.id}`);
+            }}
+            className="hover:text-zinc-300 hover:underline"
+          >
+            {playlist.user.username}
+          </span>
+        ) : null}
+        {playlist.user ? " · " : ""}
+        {playlist.track_count ?? playlist.tracks.length} tracks
       </div>
     </Link>
   );
