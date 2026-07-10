@@ -100,14 +100,17 @@ impl ScClient {
         }
     }
 
-    /// The web app's library endpoint; items wrap a `playlist` (or a
-    /// `system_playlist`, which has a urn id and is skipped by lenient parse).
+    /// The library playlists endpoint; items wrap a `playlist`. Was
+    /// `/me/library/albums_playlists_and_system_playlists` until SoundCloud
+    /// removed it (404 as of July 2026) — like `/me/followings/ids`, the
+    /// `/users/{me}/…` form is what survives.
     pub async fn ep_my_playlists(&self, next: Option<String>) -> Result<Page<Playlist>> {
         let v = match next {
             Some(href) => self.get_value(&href, &[]).await?,
             None => {
+                let me = self.me_id().await?;
                 self.get_value(
-                    "/me/library/albums_playlists_and_system_playlists",
+                    &format!("/users/{me}/playlists/liked_and_owned"),
                     &lp(24),
                 )
                 .await?
